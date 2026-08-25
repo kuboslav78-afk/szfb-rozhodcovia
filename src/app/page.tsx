@@ -225,13 +225,33 @@ export default async function Home(props: PageProps<"/">) {
     <>
       <AppHeader
         right={
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <a
               href="/profil"
               className="hidden text-sm font-medium text-white hover:underline sm:block"
             >
               {referee.full_name}
               {isSuperAdmin ? " · admin" : ""}
+            </a>
+            <a
+              href="/profil"
+              aria-label="Môj profil"
+              title="Môj profil"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/30 text-white transition hover:bg-white/10 sm:hidden"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+              >
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 20c0-4 3.5-7 8-7s8 3 8 7" />
+              </svg>
             </a>
             <SignOutButton />
           </div>
