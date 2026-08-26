@@ -233,6 +233,21 @@ export async function setSuperAdmin(refereeId: string, enabled: boolean) {
   revalidatePath("/");
 }
 
+/** Admin vie niekomu udeliť len prehľadový (read-only) prístup ku všetkým kategóriám. */
+export async function setViewer(refereeId: string, enabled: boolean) {
+  await requireSuperAdmin();
+
+  const admin = serviceClient();
+  const { error } = await admin
+    .from("referees")
+    .update({ role: enabled ? "viewer" : "referee" })
+    .eq("id", refereeId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/");
+}
+
 export async function setCategoryAdmin(
   refereeId: string,
   category: Category,

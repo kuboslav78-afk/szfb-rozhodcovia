@@ -6,7 +6,7 @@ export type RefereeProfile = {
   id: string;
   full_name: string;
   email: string;
-  role: "admin" | "referee";
+  role: "admin" | "referee" | "viewer";
   home_region: Region | null;
 };
 

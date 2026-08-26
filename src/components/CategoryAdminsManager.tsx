@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { CATEGORIES, CATEGORY_LABELS, type Category } from "@/lib/categories";
-import { setCategoryAdmin, setSuperAdmin } from "@/app/admin-users/actions";
+import { setCategoryAdmin, setSuperAdmin, setViewer } from "@/app/admin-users/actions";
 
-type Referee = { id: string; full_name: string; role: "admin" | "referee" };
+type Referee = { id: string; full_name: string; role: "admin" | "referee" | "viewer" };
 
 type Props = {
   referees: Referee[];
@@ -28,6 +28,27 @@ function SuperAdminCell({ referee }: { referee: Referee }) {
       checked={checked}
       onChange={(e) => handleChange(e.target.checked)}
       className="h-4 w-4 accent-brand-red"
+    />
+  );
+}
+
+function ViewerCell({ referee }: { referee: Referee }) {
+  const [checked, setChecked] = useState(referee.role === "viewer");
+  const [, startTransition] = useTransition();
+
+  function handleChange(next: boolean) {
+    setChecked(next);
+    startTransition(async () => {
+      await setViewer(referee.id, next);
+    });
+  }
+
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => handleChange(e.target.checked)}
+      className="h-4 w-4 accent-zinc-500"
     />
   );
 }
@@ -94,7 +115,8 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
             Kategórie = admin práva len pre daný región/kategóriu.{" "}
             <span className="font-semibold text-brand-red">Super Admin</span>{" "}
             = plný prístup ku všetkému, vrátane správy ostatných adminov —
-            udeľuj opatrne.
+            udeľuj opatrne. <span className="font-semibold">Viewer</span> = vidí
+            prehľad všetkých kategórií, ale nič nemôže upravovať.
           </p>
         </div>
         <button
@@ -115,6 +137,9 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
               </th>
               <th className="border-l border-zinc-200 px-2 py-2 text-center text-xs font-semibold text-brand-red dark:border-zinc-800">
                 Super Admin
+              </th>
+              <th className="border-l border-zinc-200 px-2 py-2 text-center text-xs font-semibold text-zinc-500 dark:border-zinc-800">
+                Viewer
               </th>
               {CATEGORIES.map((category) => (
                 <th
@@ -140,6 +165,9 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
                   </td>
                   <td className="border-l border-zinc-100 px-2 py-2 text-center dark:border-zinc-900">
                     <SuperAdminCell referee={referee} />
+                  </td>
+                  <td className="border-l border-zinc-100 px-2 py-2 text-center dark:border-zinc-900">
+                    <ViewerCell referee={referee} />
                   </td>
                   {CATEGORIES.map((category) => (
                     <td key={category} className="px-2 py-2 text-center">

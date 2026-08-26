@@ -49,17 +49,19 @@ export default async function Home(props: PageProps<"/">) {
   const supabase = await createClient();
 
   const isSuperAdmin = referee.role === "admin";
+  const isViewer = referee.role === "viewer";
+  const canSeeAllCategories = isSuperAdmin || isViewer;
 
   const [{ data: myCategoryRows }, { data: myAdminCategoryRows }] =
     await Promise.all([
       supabase.from("referee_categories").select("category").eq("referee_id", referee.id),
-      isSuperAdmin
+      canSeeAllCategories
         ? Promise.resolve({ data: null })
         : supabase.from("category_admins").select("category").eq("referee_id", referee.id),
     ]);
 
   const myCategories = (myCategoryRows ?? []).map((r) => r.category as Category);
-  const myAdminCategories: Category[] = isSuperAdmin
+  const myAdminCategories: Category[] = canSeeAllCategories
     ? [...CATEGORIES]
     : (myAdminCategoryRows ?? []).map((r) => r.category as Category);
 
@@ -67,7 +69,7 @@ export default async function Home(props: PageProps<"/">) {
   const view: "prehlad" | "moje" | "admin" =
     isSuperAdmin && viewParamRaw === "admin"
       ? "admin"
-      : canSeeAdmin && viewParamRaw === "moje"
+      : canSeeAdmin && !isViewer && viewParamRaw === "moje"
         ? "moje"
         : "prehlad";
   const adminView = canSeeAdmin && view === "prehlad";
@@ -107,7 +109,7 @@ export default async function Home(props: PageProps<"/">) {
     full_name: string;
     license_level: LicenseLevel | null;
     home_region: Region | null;
-    role: "admin" | "referee";
+    role: "admin" | "referee" | "viewer";
   };
   let adminReferees: RefereeRow[] = [];
   let adminCelostatnySet = new Set<string>();
@@ -117,7 +119,7 @@ export default async function Home(props: PageProps<"/">) {
   let allRefereeCategories: Record<string, Category[]> = {};
   let allCategoryAdmins: Record<string, Category[]> = {};
 
-  if (isSuperAdmin && (adminView || isAdminSection)) {
+  if (canSeeAllCategories && (adminView || isAdminSection)) {
     const [{ data: allRefs }, { data: allCatRows }, { data: allAdminRows }] =
       await Promise.all([
         supabase
@@ -174,7 +176,7 @@ export default async function Home(props: PageProps<"/">) {
       (categoryRefRows ?? []).map((r) => r.referee_id as string),
     );
 
-    if (isSuperAdmin) {
+    if (canSeeAllCategories) {
       adminReferees = allReferees.filter((r) => categoryRefereeIds.has(r.id));
     } else if (categoryRefereeIds.size > 0) {
       const { data: catReferees } = await supabase
@@ -257,7 +259,8 @@ export default async function Home(props: PageProps<"/">) {
     );
   }
 
-  const needsHomeRegionPrompt = !referee.home_region && myCategories.length === 0;
+  const needsHomeRegionPrompt =
+    !isViewer && !referee.home_region && myCategories.length === 0;
 
   return (
     <>
@@ -307,7 +310,7 @@ export default async function Home(props: PageProps<"/">) {
               className="hidden text-sm font-medium text-white hover:underline sm:block"
             >
               {referee.full_name}
-              {isSuperAdmin ? " · admin" : ""}
+              {isSuperAdmin ? " · admin" : isViewer ? " · viewer" : ""}
             </a>
             <a
               href="/profil"
@@ -359,16 +362,18 @@ export default async function Home(props: PageProps<"/">) {
                     Prehľad
                   </a>
                 )}
-                <a
-                  href={`/?month=${monthParam(monthKey)}&view=moje`}
-                  className={`rounded-md px-3 py-1 font-medium transition ${
-                    view === "moje"
-                      ? "bg-brand-indigo text-white"
-                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                  }`}
-                >
-                  Moja dostupnosť
-                </a>
+                {!isViewer && (
+                  <a
+                    href={`/?month=${monthParam(monthKey)}&view=moje`}
+                    className={`rounded-md px-3 py-1 font-medium transition ${
+                      view === "moje"
+                        ? "bg-brand-indigo text-white"
+                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    Moja dostupnosť
+                  </a>
+                )}
               </div>
             )}
           </div>
@@ -401,13 +406,15 @@ export default async function Home(props: PageProps<"/">) {
           </>
         ) : adminView ? (
           <>
-            <CancellationRequests items={cancellationRequests} />
-            <MatchDaysEditor
-              key={`${monthParam(monthKey)}-${category}`}
-              monthKey={monthKey}
-              category={category}
-              initialMatchDays={matchDays}
-            />
+            {!isViewer && <CancellationRequests items={cancellationRequests} />}
+            {!isViewer && (
+              <MatchDaysEditor
+                key={`${monthParam(monthKey)}-${category}`}
+                monthKey={monthKey}
+                category={category}
+                initialMatchDays={matchDays}
+              />
+            )}
             <AdminOverview
               monthKey={monthKey}
               category={category}

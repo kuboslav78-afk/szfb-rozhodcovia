@@ -112,24 +112,29 @@ async function main() {
       continue;
     }
 
-    if (referee.phone && data.user) {
+    if (data.user && (referee.phone || referee.license)) {
       const { error: updateError } = await supabase
         .from("referees")
-        .update({ phone: referee.phone })
+        .update({
+          ...(referee.phone ? { phone: referee.phone } : {}),
+          ...(referee.license ? { license_level: referee.license } : {}),
+        })
         .eq("id", data.user.id);
 
       if (updateError) {
         console.error(
-          `  (upozornenie: telefón sa nepodarilo uložiť pre ${referee.email}: ${updateError.message})`,
+          `  (upozornenie: profil sa nepodarilo doplniť pre ${referee.email}: ${updateError.message})`,
         );
       }
     }
 
-    if (data.user) {
+    // Kategória sa priradí len ak je explicitne v dátach — inak rozhodca
+    // dostane pri prvom prihlásení výzvu vybrať si domáci región.
+    if (data.user && referee.category) {
       const { error: categoryError } = await supabase
         .from("referee_categories")
         .upsert(
-          { referee_id: data.user.id, category: "celostatny" },
+          { referee_id: data.user.id, category: referee.category },
           { onConflict: "referee_id,category" },
         );
 
