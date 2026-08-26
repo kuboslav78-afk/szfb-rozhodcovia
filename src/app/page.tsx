@@ -448,6 +448,7 @@ export default async function Home(props: PageProps<"/">) {
             <RegionSwitcher
               activeCategory={category}
               primaryCategory={primaryCategory}
+              myCategories={myCategories}
               monthParam={monthParam(monthKey)}
             />
             <RefereeCalendar
