@@ -2,14 +2,35 @@
 
 import { useState, useTransition } from "react";
 import { CATEGORIES, CATEGORY_LABELS, type Category } from "@/lib/categories";
-import { setCategoryAdmin } from "@/app/admin-users/actions";
+import { setCategoryAdmin, setSuperAdmin } from "@/app/admin-users/actions";
 
-type Referee = { id: string; full_name: string };
+type Referee = { id: string; full_name: string; role: "admin" | "referee" };
 
 type Props = {
   referees: Referee[];
   initialAdmins: Record<string, Category[]>;
 };
+
+function SuperAdminCell({ referee }: { referee: Referee }) {
+  const [checked, setChecked] = useState(referee.role === "admin");
+  const [, startTransition] = useTransition();
+
+  function handleChange(next: boolean) {
+    setChecked(next);
+    startTransition(async () => {
+      await setSuperAdmin(referee.id, next);
+    });
+  }
+
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => handleChange(e.target.checked)}
+      className="h-4 w-4 accent-brand-red"
+    />
+  );
+}
 
 export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
   const [collapsed, setCollapsed] = useState(true);
@@ -44,10 +65,11 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
       <div className="mb-10 flex items-center justify-between rounded-xl border border-zinc-200 px-5 py-4 dark:border-zinc-800">
         <div>
           <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
-            Regionálni admini
+            Administrátori
           </h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Udeľ niekomu admin práva len pre konkrétny región/kategóriu.
+            Udeľ niekomu admin práva pre konkrétny región, alebo z neho urob
+            plnohodnotného administrátora.
           </p>
         </div>
         <button
@@ -66,11 +88,13 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
-            Regionálni admini
+            Administrátori
           </h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Zaškrtnutý rozhodca dostane admin prístup (hracie dni, prehľad,
-            žiadosti) pre danú kategóriu.
+            Kategórie = admin práva len pre daný región/kategóriu.{" "}
+            <span className="font-semibold text-brand-red">Super Admin</span>{" "}
+            = plný prístup ku všetkému, vrátane správy ostatných adminov —
+            udeľuj opatrne.
           </p>
         </div>
         <button
@@ -88,6 +112,9 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
             <tr>
               <th className="px-2 py-2 text-left font-semibold text-zinc-600 dark:text-zinc-300">
                 Rozhodca
+              </th>
+              <th className="border-l border-zinc-200 px-2 py-2 text-center text-xs font-semibold text-brand-red dark:border-zinc-800">
+                Super Admin
               </th>
               {CATEGORIES.map((category) => (
                 <th
@@ -111,6 +138,9 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
                   <td className="whitespace-nowrap px-2 py-2 font-medium text-zinc-800 dark:text-zinc-200">
                     {referee.full_name}
                   </td>
+                  <td className="border-l border-zinc-100 px-2 py-2 text-center dark:border-zinc-900">
+                    <SuperAdminCell referee={referee} />
+                  </td>
                   {CATEGORIES.map((category) => (
                     <td key={category} className="px-2 py-2 text-center">
                       <input
@@ -118,7 +148,7 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
                         disabled={isPending}
                         checked={refereeAdmins.has(category)}
                         onChange={() => toggle(referee.id, category)}
-                        className="h-4 w-4 accent-brand-red"
+                        className="h-4 w-4 accent-brand-indigo"
                       />
                     </td>
                   ))}

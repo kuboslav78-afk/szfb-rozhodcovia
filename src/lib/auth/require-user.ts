@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import type { Region } from "@/lib/categories";
 
 export type RefereeProfile = {
   id: string;
   full_name: string;
   email: string;
   role: "admin" | "referee";
+  home_region: Region | null;
 };
 
 export async function requireUser(): Promise<RefereeProfile> {
@@ -21,7 +23,7 @@ export async function requireUser(): Promise<RefereeProfile> {
 
   const { data: referee } = await supabase
     .from("referees")
-    .select("id, full_name, email, role")
+    .select("id, full_name, email, role, home_region")
     .eq("id", user.id)
     .single();
 
@@ -29,5 +31,5 @@ export async function requireUser(): Promise<RefereeProfile> {
     redirect("/login");
   }
 
-  return referee;
+  return referee as RefereeProfile;
 }

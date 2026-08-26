@@ -7,8 +7,9 @@ import {
   todayDateStr,
   toDateStr,
 } from "@/lib/dates";
-import { CATEGORIES, parseCategoryParam, type Category } from "@/lib/categories";
+import { CATEGORIES, parseCategoryParam, type Category, type Region } from "@/lib/categories";
 import type { LicenseLevel } from "@/lib/licenses";
+import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
 import { MonthNav } from "@/components/MonthNav";
 import { RefereeCalendar } from "@/components/RefereeCalendar";
 import { AdminOverview } from "@/components/AdminOverview";
@@ -63,8 +64,14 @@ export default async function Home(props: PageProps<"/">) {
     : (myAdminCategoryRows ?? []).map((r) => r.category as Category);
 
   const canSeeAdmin = myAdminCategories.length > 0;
-  const view = canSeeAdmin && viewParamRaw === "moje" ? "moje" : "prehlad";
+  const view: "prehlad" | "moje" | "admin" =
+    isSuperAdmin && viewParamRaw === "admin"
+      ? "admin"
+      : canSeeAdmin && viewParamRaw === "moje"
+        ? "moje"
+        : "prehlad";
   const adminView = canSeeAdmin && view === "prehlad";
+  const isAdminSection = isSuperAdmin && view === "admin";
 
   const visibleCategories: Category[] = adminView ? myAdminCategories : myCategories;
 
@@ -87,13 +94,49 @@ export default async function Home(props: PageProps<"/">) {
   const matchDays = (matchDayRows ?? []).map((row) => row.match_date as string);
 
   let refereeAvailability: Record<string, DayEntry> = {};
-  type RefereeRow = { id: string; full_name: string; license_level: LicenseLevel | null };
+  type RefereeRow = {
+    id: string;
+    full_name: string;
+    license_level: LicenseLevel | null;
+    home_region: Region | null;
+    role: "admin" | "referee";
+  };
   let adminReferees: RefereeRow[] = [];
+  let adminCelostatnySet = new Set<string>();
   let adminAvailability: Record<string, Record<string, DayEntry>> = {};
   let cancellationRequests: CancellationRequestItem[] = [];
   let allReferees: RefereeRow[] = [];
   let allRefereeCategories: Record<string, Category[]> = {};
   let allCategoryAdmins: Record<string, Category[]> = {};
+
+  if (isSuperAdmin && (adminView || isAdminSection)) {
+    const [{ data: allRefs }, { data: allCatRows }, { data: allAdminRows }] =
+      await Promise.all([
+        supabase
+          .from("referees")
+          .select("id, full_name, license_level, home_region, role")
+          .eq("active", true)
+          .order("full_name"),
+        supabase.from("referee_categories").select("referee_id, category"),
+        supabase.from("category_admins").select("referee_id, category"),
+      ]);
+
+    allReferees = allRefs ?? [];
+
+    allRefereeCategories = {};
+    for (const row of allCatRows ?? []) {
+      const id = row.referee_id as string;
+      allRefereeCategories[id] ??= [];
+      allRefereeCategories[id].push(row.category as Category);
+    }
+
+    allCategoryAdmins = {};
+    for (const row of allAdminRows ?? []) {
+      const id = row.referee_id as string;
+      allCategoryAdmins[id] ??= [];
+      allCategoryAdmins[id].push(row.category as Category);
+    }
+  }
 
   if (adminView) {
     const queries = [
@@ -124,44 +167,29 @@ export default async function Home(props: PageProps<"/">) {
     );
 
     if (isSuperAdmin) {
-      const [{ data: allRefs }, { data: allCatRows }, { data: allAdminRows }] =
-        await Promise.all([
-          supabase
-            .from("referees")
-            .select("id, full_name, license_level")
-            .eq("active", true)
-            .order("full_name"),
-          supabase.from("referee_categories").select("referee_id, category"),
-          supabase.from("category_admins").select("referee_id, category"),
-        ]);
-
-      allReferees = allRefs ?? [];
-
-      allRefereeCategories = {};
-      for (const row of allCatRows ?? []) {
-        const id = row.referee_id as string;
-        allRefereeCategories[id] ??= [];
-        allRefereeCategories[id].push(row.category as Category);
-      }
-
-      allCategoryAdmins = {};
-      for (const row of allAdminRows ?? []) {
-        const id = row.referee_id as string;
-        allCategoryAdmins[id] ??= [];
-        allCategoryAdmins[id].push(row.category as Category);
-      }
-    }
-
-    if (isSuperAdmin) {
       adminReferees = allReferees.filter((r) => categoryRefereeIds.has(r.id));
     } else if (categoryRefereeIds.size > 0) {
       const { data: catReferees } = await supabase
         .from("referees")
-        .select("id, full_name, license_level")
+        .select("id, full_name, license_level, home_region, role")
         .in("id", Array.from(categoryRefereeIds))
         .eq("active", true)
         .order("full_name");
       adminReferees = catReferees ?? [];
+    }
+
+    if (adminReferees.length > 0) {
+      const { data: celostatnyRows } = await supabase
+        .from("referee_categories")
+        .select("referee_id")
+        .eq("category", "celostatny")
+        .in(
+          "referee_id",
+          adminReferees.map((r) => r.id),
+        );
+      adminCelostatnySet = new Set(
+        (celostatnyRows ?? []).map((r) => r.referee_id as string),
+      );
     }
 
     adminAvailability = {};
@@ -221,8 +249,11 @@ export default async function Home(props: PageProps<"/">) {
     );
   }
 
+  const needsHomeRegionPrompt = !referee.home_region && myCategories.length === 0;
+
   return (
     <>
+      {needsHomeRegionPrompt && <HomeRegionPrompt />}
       <AppHeader
         right={
           <div className="flex items-center gap-3 sm:gap-4">
@@ -262,21 +293,27 @@ export default async function Home(props: PageProps<"/">) {
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">
-              {adminView ? "Prehľad dostupnosti" : "Moja dostupnosť"}
+              {isAdminSection
+                ? "Administrácia"
+                : adminView
+                  ? "Prehľad dostupnosti"
+                  : "Moja dostupnosť"}
             </h1>
 
-            {canSeeAdmin && (
-              <div className="ml-2 flex rounded-lg border border-zinc-200 p-0.5 text-sm dark:border-zinc-800">
-                <a
-                  href={`/?month=${monthParam(monthKey)}&category=${category}`}
-                  className={`rounded-md px-3 py-1 font-medium transition ${
-                    view === "prehlad"
-                      ? "bg-brand-indigo text-white"
-                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                  }`}
-                >
-                  Prehľad
-                </a>
+            {(canSeeAdmin || isSuperAdmin) && (
+              <div className="ml-2 flex flex-wrap rounded-lg border border-zinc-200 p-0.5 text-sm dark:border-zinc-800">
+                {canSeeAdmin && (
+                  <a
+                    href={`/?month=${monthParam(monthKey)}&category=${category}`}
+                    className={`rounded-md px-3 py-1 font-medium transition ${
+                      view === "prehlad"
+                        ? "bg-brand-indigo text-white"
+                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    Prehľad
+                  </a>
+                )}
                 <a
                   href={`/?month=${monthParam(monthKey)}&view=moje`}
                   className={`rounded-md px-3 py-1 font-medium transition ${
@@ -287,35 +324,50 @@ export default async function Home(props: PageProps<"/">) {
                 >
                   Moja dostupnosť
                 </a>
+                {isSuperAdmin && (
+                  <a
+                    href={`/?view=admin`}
+                    className={`rounded-md px-3 py-1 font-medium transition ${
+                      view === "admin"
+                        ? "bg-brand-indigo text-white"
+                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    Administrácia
+                  </a>
+                )}
               </div>
             )}
           </div>
 
-          <MonthNav monthKey={monthKey} view={canSeeAdmin ? view : undefined} />
+          {!isAdminSection && (
+            <MonthNav monthKey={monthKey} view={canSeeAdmin ? view : undefined} />
+          )}
         </div>
 
-        <CategoryTabs
-          categories={visibleCategories}
-          active={category}
-          monthKey={monthKey}
-          view={canSeeAdmin ? view : undefined}
-        />
+        {!isAdminSection && (
+          <CategoryTabs
+            categories={visibleCategories}
+            active={category}
+            monthKey={monthKey}
+            view={canSeeAdmin ? view : undefined}
+          />
+        )}
 
-        {adminView ? (
+        {isAdminSection ? (
           <>
-            {isSuperAdmin && (
-              <>
-                <AddRefereeForm />
-                <RefereeCategoriesManager
-                  referees={allReferees}
-                  initialCategories={allRefereeCategories}
-                />
-                <CategoryAdminsManager
-                  referees={allReferees}
-                  initialAdmins={allCategoryAdmins}
-                />
-              </>
-            )}
+            <AddRefereeForm />
+            <RefereeCategoriesManager
+              referees={allReferees}
+              initialCategories={allRefereeCategories}
+            />
+            <CategoryAdminsManager
+              referees={allReferees}
+              initialAdmins={allCategoryAdmins}
+            />
+          </>
+        ) : adminView ? (
+          <>
             <CancellationRequests items={cancellationRequests} />
             <MatchDaysEditor
               key={`${monthParam(monthKey)}-${category}`}
@@ -325,7 +377,11 @@ export default async function Home(props: PageProps<"/">) {
             />
             <AdminOverview
               monthKey={monthKey}
-              referees={adminReferees}
+              category={category}
+              referees={adminReferees.map((r) => ({
+                ...r,
+                is_celostatny: adminCelostatnySet.has(r.id),
+              }))}
               matchDays={matchDays}
               availability={adminAvailability}
             />

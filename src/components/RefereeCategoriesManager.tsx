@@ -1,13 +1,22 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CATEGORIES, CATEGORY_LABELS, type Category } from "@/lib/categories";
+import { CATEGORIES, CATEGORY_LABELS, REGIONS, type Category, type Region } from "@/lib/categories";
 import { LICENSE_LEVELS, type LicenseLevel } from "@/lib/licenses";
 import { adminSetRefereeCategory } from "@/app/referee-categories/actions";
-import { updateRefereeName, updateRefereeLicense } from "@/app/admin-users/actions";
+import {
+  updateRefereeName,
+  updateRefereeLicense,
+  adminSetHomeRegion,
+} from "@/app/admin-users/actions";
 import { LicenseBadge } from "@/components/LicenseBadge";
 
-type Referee = { id: string; full_name: string; license_level: LicenseLevel | null };
+type Referee = {
+  id: string;
+  full_name: string;
+  license_level: LicenseLevel | null;
+  home_region: Region | null;
+};
 
 type Props = {
   referees: Referee[];
@@ -68,6 +77,33 @@ function LicenseCell({ referee }: { referee: Referee }) {
   );
 }
 
+function HomeRegionCell({ referee }: { referee: Referee }) {
+  const [value, setValue] = useState<Region | "">(referee.home_region ?? "");
+  const [, startTransition] = useTransition();
+
+  function handleChange(next: Region | "") {
+    setValue(next);
+    startTransition(async () => {
+      await adminSetHomeRegion(referee.id, next || null);
+    });
+  }
+
+  return (
+    <select
+      value={value}
+      onChange={(e) => handleChange(e.target.value as Region | "")}
+      className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-xs text-zinc-700 outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+    >
+      <option value="">— žiadny —</option>
+      {REGIONS.map((region) => (
+        <option key={region} value={region}>
+          {CATEGORY_LABELS[region]}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function RefereeCategoriesManager({
   referees,
   initialCategories,
@@ -110,8 +146,8 @@ export function RefereeCategoriesManager({
             Kategórie rozhodcov
           </h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Priraď rozhodcov k regiónom, uprav meno, licenciu a udeľ
-            celoštátny status.
+            Priraď rozhodcov k regiónom, uprav meno, licenciu, domáci región a
+            udeľ celoštátny status.
           </p>
         </div>
         <button
@@ -133,9 +169,11 @@ export function RefereeCategoriesManager({
             Kategórie rozhodcov
           </h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Meno uprav kliknutím do políčka. Celoštátny status udeľuje len
-            admin, regióny si rozhodcovia môžu meniť aj sami. N = nováčik, C =
-            regionálny, B = celoštátny.
+            Meno uprav kliknutím do políčka. Domáci región si rozhodca zvolí
+            sám pri prvom prihlásení, potom ho môže meniť už len admin.
+            Celoštátny status udeľuje len admin, ostatné regióny si
+            rozhodcovia môžu meniť aj sami. N = nováčik, C = regionálny, B =
+            celoštátny.
           </p>
         </div>
         <button
@@ -156,6 +194,9 @@ export function RefereeCategoriesManager({
               </th>
               <th className="px-2 py-2 text-center text-xs font-medium text-zinc-400">
                 Licencia
+              </th>
+              <th className="px-2 py-2 text-center text-xs font-medium text-zinc-400">
+                Domáci región
               </th>
               {CATEGORIES.map((category) => (
                 <th
@@ -184,6 +225,9 @@ export function RefereeCategoriesManager({
                   </td>
                   <td className="px-2 py-2 text-center">
                     <LicenseCell referee={referee} />
+                  </td>
+                  <td className="px-2 py-2 text-center">
+                    <HomeRegionCell referee={referee} />
                   </td>
                   {CATEGORIES.map((category) => (
                     <td key={category} className="px-2 py-2 text-center">

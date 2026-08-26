@@ -4,10 +4,18 @@ import { useState } from "react";
 import { type MonthKey, toDateStr } from "@/lib/dates";
 import type { AvailabilityStatus } from "@/app/availability/actions";
 import type { LicenseLevel } from "@/lib/licenses";
+import { refereeRelation, type Category, type Region } from "@/lib/categories";
 import { DayNominationModal } from "@/components/DayNominationModal";
 import { LicenseBadge } from "@/components/LicenseBadge";
+import { RelationBadge } from "@/components/RelationBadge";
 
-type Referee = { id: string; full_name: string; license_level: LicenseLevel | null };
+type Referee = {
+  id: string;
+  full_name: string;
+  license_level: LicenseLevel | null;
+  home_region: Region | null;
+  is_celostatny: boolean;
+};
 type DayEntry = {
   status: AvailabilityStatus;
   reason: string | null;
@@ -18,6 +26,7 @@ type DayEntry = {
 
 type Props = {
   monthKey: MonthKey;
+  category: Category;
   referees: Referee[];
   matchDays: string[];
   availability: Record<string, Record<string, DayEntry>>;
@@ -58,6 +67,7 @@ function statusLabel(entry: DayEntry | undefined) {
 
 export function AdminOverview({
   monthKey,
+  category,
   referees,
   matchDays,
   availability,
@@ -124,6 +134,13 @@ export function AdminOverview({
                 <td className="sticky left-0 whitespace-nowrap bg-white px-3 py-2 font-medium text-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
                   {referee.full_name}
                   <LicenseBadge level={referee.license_level} />
+                  <RelationBadge
+                    relation={refereeRelation(
+                      category,
+                      referee.home_region,
+                      referee.is_celostatny,
+                    )}
+                  />
                 </td>
                 {days.map((day) => {
                   const dateStr = toDateStr(monthKey.year, monthKey.month, day);
@@ -174,6 +191,11 @@ export function AdminOverview({
           referees={referees.map((referee) => ({
             name: referee.full_name,
             license: referee.license_level,
+            relation: refereeRelation(
+              category,
+              referee.home_region,
+              referee.is_celostatny,
+            ),
             entry: (availability[referee.id] ?? {})[selectedDateStr],
           }))}
           onClose={() => setSelectedDay(null)}

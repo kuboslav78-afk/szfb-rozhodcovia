@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import type { Category } from "@/lib/categories";
+import { isRegion, type Category, type Region } from "@/lib/categories";
 import type { LicenseLevel } from "@/lib/licenses";
 
 function slugify(part: string) {
@@ -91,11 +91,7 @@ export async function createReferee(input: {
       .eq("id", data.user.id);
   }
 
-  const participate = input.participateCategories.length > 0
-    ? input.participateCategories
-    : (["celostatny"] as Category[]);
-
-  for (const category of participate) {
+  for (const category of input.participateCategories) {
     await admin
       .from("referee_categories")
       .upsert({ referee_id: data.user.id, category }, { onConflict: "referee_id,category" });
@@ -141,6 +137,95 @@ export async function updateRefereeLicense(
   const { error } = await admin
     .from("referees")
     .update({ license_level: license })
+    .eq("id", refereeId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/");
+}
+
+/** Rozhodca si pri prvom prihlásení sám zvolí domáci región — len raz, kým je null. */
+export async function chooseHomeRegion(region: Region) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Pre túto akciu sa musíš prihlásiť.");
+  }
+
+  if (!isRegion(region)) {
+    throw new Error("Neplatný región.");
+  }
+
+  const { data: existing } = await supabase
+    .from("referees")
+    .select("home_region")
+    .eq("id", user.id)
+    .single();
+
+  if (existing?.home_region) {
+    throw new Error(
+      "Domáci región už máš nastavený — zmenu môže urobiť len administrátor.",
+    );
+  }
+
+  const { error: updateError } = await supabase
+    .from("referees")
+    .update({ home_region: region })
+    .eq("id", user.id);
+
+  if (updateError) throw new Error(updateError.message);
+
+  const { error: categoryError } = await supabase
+    .from("referee_categories")
+    .upsert(
+      { referee_id: user.id, category: region },
+      { onConflict: "referee_id,category" },
+    );
+
+  if (categoryError) throw new Error(categoryError.message);
+
+  revalidatePath("/");
+}
+
+/** Admin vie kedykoľvek zmeniť/zrušiť domáci región ktoréhokoľvek rozhodcu. */
+export async function adminSetHomeRegion(
+  refereeId: string,
+  region: Region | null,
+) {
+  await requireSuperAdmin();
+
+  const admin = serviceClient();
+  const { error } = await admin
+    .from("referees")
+    .update({ home_region: region })
+    .eq("id", refereeId);
+
+  if (error) throw new Error(error.message);
+
+  if (region) {
+    await admin
+      .from("referee_categories")
+      .upsert(
+        { referee_id: refereeId, category: region },
+        { onConflict: "referee_id,category" },
+      );
+  }
+
+  revalidatePath("/");
+}
+
+/** Admin vie z rozhodcu urobiť plnohodnotného (super) administrátora, alebo ho odvolať. */
+export async function setSuperAdmin(refereeId: string, enabled: boolean) {
+  await requireSuperAdmin();
+
+  const admin = serviceClient();
+  const { error } = await admin
+    .from("referees")
+    .update({ role: enabled ? "admin" : "referee" })
     .eq("id", refereeId);
 
   if (error) throw new Error(error.message);

@@ -1,12 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CATEGORIES, CATEGORY_LABELS, type Category } from "@/lib/categories";
+import { CATEGORY_LABELS, REGIONS, type Category } from "@/lib/categories";
 import { setMyRegion } from "@/app/referee-categories/actions";
-
-const REGIONS: Category[] = CATEGORIES.filter(
-  (c): c is Category => c !== "celostatny",
-);
 
 type Props = {
   myCategories: Category[];

@@ -2,7 +2,9 @@
 
 import type { AvailabilityStatus } from "@/app/availability/actions";
 import type { LicenseLevel } from "@/lib/licenses";
+import type { RefereeRelation } from "@/lib/categories";
 import { LicenseBadge } from "@/components/LicenseBadge";
+import { RelationBadge } from "@/components/RelationBadge";
 
 type DayEntry = {
   status: AvailabilityStatus;
@@ -15,6 +17,7 @@ type DayEntry = {
 type RefereeStatus = {
   name: string;
   license?: LicenseLevel | null;
+  relation?: RefereeRelation | null;
   entry: DayEntry | undefined;
 };
 
@@ -81,6 +84,7 @@ export function DayNominationModal({ dateStr, referees, onClose }: Props) {
                 <li key={r.name} className="flex items-center text-sm text-zinc-700 dark:text-zinc-200">
                   {r.name}
                   <LicenseBadge level={r.license} />
+                  <RelationBadge relation={r.relation ?? null} />
                   {r.entry?.cancelRequested ? " (žiada zrušenie)" : ""}
                 </li>
               ))}
@@ -101,6 +105,7 @@ export function DayNominationModal({ dateStr, referees, onClose }: Props) {
                   <span className="inline-flex items-center">
                     {r.name}
                     <LicenseBadge level={r.license} />
+                  <RelationBadge relation={r.relation ?? null} />
                   </span>
                   {r.entry ? timeRange(r.entry) : ""}
                   {r.entry?.reason ? (
@@ -127,6 +132,7 @@ export function DayNominationModal({ dateStr, referees, onClose }: Props) {
                 <li key={r.name} className="flex items-center text-sm text-zinc-700 dark:text-zinc-200">
                   {r.name}
                   <LicenseBadge level={r.license} />
+                  <RelationBadge relation={r.relation ?? null} />
                 </li>
               ))}
             </ul>
@@ -145,6 +151,7 @@ export function DayNominationModal({ dateStr, referees, onClose }: Props) {
                 <li key={r.name} className="flex items-center text-sm text-zinc-500">
                   {r.name}
                   <LicenseBadge level={r.license} />
+                  <RelationBadge relation={r.relation ?? null} />
                 </li>
               ))}
             </ul>

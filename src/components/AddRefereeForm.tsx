@@ -12,7 +12,7 @@ export function AddRefereeForm() {
   const [phone, setPhone] = useState("");
   const [license, setLicense] = useState<LicenseLevel | "">("");
   const [participate, setParticipate] = useState<Set<Category>>(
-    new Set(["celostatny"]),
+    new Set(),
   );
   const [adminFor, setAdminFor] = useState<Set<Category>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -170,6 +170,10 @@ export function AddRefereeForm() {
           <div>
             <p className="mb-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-300">
               Kategórie (kde bude rozhodovať)
+            </p>
+            <p className="mb-1.5 text-xs text-zinc-500">
+              Pre nového regionálneho rozhodcu nechaj prázdne — pri prvom
+              prihlásení si sám zvolí domáci región.
             </p>
             <div className="flex flex-wrap gap-2">
               {CATEGORIES.map((category) => (
