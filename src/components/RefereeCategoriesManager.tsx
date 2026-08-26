@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CATEGORIES, CATEGORY_LABELS, REGIONS, type Category, type Region } from "@/lib/categories";
+import { CATEGORIES, CATEGORY_LABELS, REGIONS, type Category } from "@/lib/categories";
 import { LICENSE_LEVELS, type LicenseLevel } from "@/lib/licenses";
 import { adminSetRefereeCategory } from "@/app/referee-categories/actions";
 import {
@@ -15,7 +15,7 @@ type Referee = {
   id: string;
   full_name: string;
   license_level: LicenseLevel | null;
-  home_region: Region | null;
+  home_region: Category | null;
 };
 
 type Props = {
@@ -78,10 +78,10 @@ function LicenseCell({ referee }: { referee: Referee }) {
 }
 
 function HomeRegionCell({ referee }: { referee: Referee }) {
-  const [value, setValue] = useState<Region | "">(referee.home_region ?? "");
+  const [value, setValue] = useState<Category | "">(referee.home_region ?? "");
   const [, startTransition] = useTransition();
 
-  function handleChange(next: Region | "") {
+  function handleChange(next: Category | "") {
     setValue(next);
     startTransition(async () => {
       await adminSetHomeRegion(referee.id, next || null);
@@ -91,10 +91,11 @@ function HomeRegionCell({ referee }: { referee: Referee }) {
   return (
     <select
       value={value}
-      onChange={(e) => handleChange(e.target.value as Region | "")}
+      onChange={(e) => handleChange(e.target.value as Category | "")}
       className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-xs text-zinc-700 outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
     >
       <option value="">— žiadny —</option>
+      <option value="celostatny">{CATEGORY_LABELS.celostatny}</option>
       {REGIONS.map((region) => (
         <option key={region} value={region}>
           {CATEGORY_LABELS[region]}

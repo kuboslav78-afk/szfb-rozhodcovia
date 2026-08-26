@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Region } from "@/lib/categories";
+import type { Category } from "@/lib/categories";
 
 export type RefereeProfile = {
   id: string;
   full_name: string;
   email: string;
   role: "admin" | "referee" | "viewer";
-  home_region: Region | null;
+  home_region: Category | null;
 };
 
 export async function requireUser(): Promise<RefereeProfile> {

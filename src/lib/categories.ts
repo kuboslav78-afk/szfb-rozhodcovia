@@ -29,7 +29,7 @@ export const RELATION_LABELS: Record<RefereeRelation, string> = {
 /** Vzťah rozhodcu k práve zobrazenému regiónu — null keď je vybraná kategória "celoštátny". */
 export function refereeRelation(
   category: Category,
-  homeRegion: Region | null,
+  homeRegion: Category | null,
   isCelostatnyMember: boolean,
 ): RefereeRelation | null {
   if (category === "celostatny") return null;

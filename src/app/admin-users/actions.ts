@@ -191,10 +191,15 @@ export async function chooseHomeRegion(region: Region) {
   revalidatePath("/");
 }
 
-/** Admin vie kedykoľvek zmeniť/zrušiť domáci región ktoréhokoľvek rozhodcu. */
+/**
+ * Admin vie kedykoľvek zmeniť/zrušiť domáci región ktoréhokoľvek rozhodcu.
+ * "celostatny" je tu len informatívna hodnota pre celoštátnych rozhodcov —
+ * nespúšťa (na rozdiel od skutočného regiónu) automatické zaradenie do kategórie,
+ * keďže tí ju už majú udelenú samostatne.
+ */
 export async function adminSetHomeRegion(
   refereeId: string,
-  region: Region | null,
+  region: Category | null,
 ) {
   await requireSuperAdmin();
 
@@ -206,7 +211,7 @@ export async function adminSetHomeRegion(
 
   if (error) throw new Error(error.message);
 
-  if (region) {
+  if (region && isRegion(region)) {
     await admin
       .from("referee_categories")
       .upsert(

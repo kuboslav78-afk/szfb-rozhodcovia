@@ -7,7 +7,7 @@ import {
   todayDateStr,
   toDateStr,
 } from "@/lib/dates";
-import { CATEGORIES, parseCategoryParam, type Category, type Region } from "@/lib/categories";
+import { CATEGORIES, parseCategoryParam, type Category } from "@/lib/categories";
 import type { LicenseLevel } from "@/lib/licenses";
 import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
 import { MonthNav } from "@/components/MonthNav";
@@ -108,7 +108,7 @@ export default async function Home(props: PageProps<"/">) {
     id: string;
     full_name: string;
     license_level: LicenseLevel | null;
-    home_region: Region | null;
+    home_region: Category | null;
     role: "admin" | "referee" | "viewer";
   };
   let adminReferees: RefereeRow[] = [];
@@ -348,33 +348,42 @@ export default async function Home(props: PageProps<"/">) {
                   : "Moja dostupnosť"}
             </h1>
 
-            {canSeeAdmin && (
-              <div className="ml-2 flex flex-wrap rounded-lg border border-zinc-200 p-0.5 text-sm dark:border-zinc-800">
-                {canSeeAdmin && (
-                  <a
-                    href={`/?month=${monthParam(monthKey)}&category=${category}`}
-                    className={`rounded-md px-3 py-1 font-medium transition ${
-                      view === "prehlad"
-                        ? "bg-brand-indigo text-white"
-                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                    }`}
-                  >
-                    Prehľad
-                  </a>
-                )}
-                {!isViewer && (
-                  <a
-                    href={`/?month=${monthParam(monthKey)}&view=moje`}
-                    className={`rounded-md px-3 py-1 font-medium transition ${
-                      view === "moje"
-                        ? "bg-brand-indigo text-white"
-                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                    }`}
-                  >
-                    Moja dostupnosť
-                  </a>
-                )}
-              </div>
+            {isAdminSection ? (
+              <a
+                href={`/?month=${monthParam(monthKey)}&category=${category}`}
+                className="ml-2 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                ← Späť na kalendár
+              </a>
+            ) : (
+              canSeeAdmin && (
+                <div className="ml-2 flex flex-wrap rounded-lg border border-zinc-200 p-0.5 text-sm dark:border-zinc-800">
+                  {canSeeAdmin && (
+                    <a
+                      href={`/?month=${monthParam(monthKey)}&category=${category}`}
+                      className={`rounded-md px-3 py-1 font-medium transition ${
+                        view === "prehlad"
+                          ? "bg-brand-indigo text-white"
+                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                      }`}
+                    >
+                      Prehľad
+                    </a>
+                  )}
+                  {!isViewer && (
+                    <a
+                      href={`/?month=${monthParam(monthKey)}&view=moje`}
+                      className={`rounded-md px-3 py-1 font-medium transition ${
+                        view === "moje"
+                          ? "bg-brand-indigo text-white"
+                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                      }`}
+                    >
+                      Moja dostupnosť
+                    </a>
+                  )}
+                </div>
+              )
             )}
           </div>
 

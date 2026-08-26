@@ -4,7 +4,7 @@ import { useState } from "react";
 import { type MonthKey, toDateStr } from "@/lib/dates";
 import type { AvailabilityStatus } from "@/app/availability/actions";
 import type { LicenseLevel } from "@/lib/licenses";
-import { refereeRelation, type Category, type Region } from "@/lib/categories";
+import { refereeRelation, type Category } from "@/lib/categories";
 import { DayNominationModal } from "@/components/DayNominationModal";
 import { LicenseBadge } from "@/components/LicenseBadge";
 import { RelationBadge } from "@/components/RelationBadge";
@@ -13,7 +13,7 @@ type Referee = {
   id: string;
   full_name: string;
   license_level: LicenseLevel | null;
-  home_region: Region | null;
+  home_region: Category | null;
   is_celostatny: boolean;
 };
 type DayEntry = {
