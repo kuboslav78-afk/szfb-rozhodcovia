@@ -17,7 +17,7 @@ import { MatchDaysEditor } from "@/components/MatchDaysEditor";
 import { SignOutButton } from "@/components/SignOutButton";
 import { AppHeader } from "@/components/AppHeader";
 import { CategoryTabs } from "@/components/CategoryTabs";
-import { MyRegionsManager } from "@/components/MyRegionsManager";
+import { RegionSwitcher } from "@/components/RegionSwitcher";
 import { RefereeCategoriesManager } from "@/components/RefereeCategoriesManager";
 import { CategoryAdminsManager } from "@/components/CategoryAdminsManager";
 import { AddRefereeForm } from "@/components/AddRefereeForm";
@@ -75,10 +75,18 @@ export default async function Home(props: PageProps<"/">) {
 
   const visibleCategories: Category[] = adminView ? myAdminCategories : myCategories;
 
+  const primaryCategory: Category = myCategories.includes("celostatny")
+    ? "celostatny"
+    : (referee.home_region ?? myCategories[0] ?? "celostatny");
+
   const requestedCategory = parseCategoryParam(categoryParamRaw);
-  const category: Category = visibleCategories.includes(requestedCategory)
-    ? requestedCategory
-    : (visibleCategories[0] ?? "celostatny");
+  const category: Category = adminView
+    ? visibleCategories.includes(requestedCategory)
+      ? requestedCategory
+      : (visibleCategories[0] ?? "celostatny")
+    : myCategories.includes(requestedCategory)
+      ? requestedCategory
+      : primaryCategory;
 
   const days = monthGrid(monthKey).filter((d): d is number => d !== null);
   const firstDay = toDateStr(monthKey.year, monthKey.month, days[0]);
@@ -370,7 +378,7 @@ export default async function Home(props: PageProps<"/">) {
           )}
         </div>
 
-        {!isAdminSection && (
+        {adminView && (
           <CategoryTabs
             categories={visibleCategories}
             active={category}
@@ -417,11 +425,14 @@ export default async function Home(props: PageProps<"/">) {
               Zatiaľ nemáš vybraný žiadny región — vyber si ho nižšie, aby si
               videl/a hracie dni.
             </p>
-            <MyRegionsManager myCategories={myCategories} />
+            <RegionSwitcher monthParam={monthParam(monthKey)} />
           </div>
         ) : (
           <>
-            <MyRegionsManager myCategories={myCategories} />
+            <RegionSwitcher
+              activeCategory={category}
+              monthParam={monthParam(monthKey)}
+            />
             <RefereeCalendar
               key={`${monthParam(monthKey)}-${view}-${category}`}
               monthKey={monthKey}
