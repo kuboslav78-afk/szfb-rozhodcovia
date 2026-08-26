@@ -257,6 +257,43 @@ export default async function Home(props: PageProps<"/">) {
       <AppHeader
         right={
           <div className="flex items-center gap-3 sm:gap-4">
+            {isSuperAdmin && (
+              <a
+                href={`/?view=admin`}
+                className={`hidden rounded-lg border px-3 py-1.5 text-sm font-medium transition sm:block ${
+                  view === "admin"
+                    ? "border-white bg-white text-brand-indigo"
+                    : "border-white/30 text-white hover:bg-white/10"
+                }`}
+              >
+                Administrácia
+              </a>
+            )}
+            {isSuperAdmin && (
+              <a
+                href={`/?view=admin`}
+                aria-label="Administrácia"
+                title="Administrácia"
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-white transition sm:hidden ${
+                  view === "admin"
+                    ? "border-white bg-white/20"
+                    : "border-white/30 hover:bg-white/10"
+                }`}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                >
+                  <path d="M12 2 4 5.5v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10v-6L12 2Z" />
+                </svg>
+              </a>
+            )}
             <a
               href="/profil"
               className="hidden text-sm font-medium text-white hover:underline sm:block"
@@ -300,7 +337,7 @@ export default async function Home(props: PageProps<"/">) {
                   : "Moja dostupnosť"}
             </h1>
 
-            {(canSeeAdmin || isSuperAdmin) && (
+            {canSeeAdmin && (
               <div className="ml-2 flex flex-wrap rounded-lg border border-zinc-200 p-0.5 text-sm dark:border-zinc-800">
                 {canSeeAdmin && (
                   <a
@@ -324,18 +361,6 @@ export default async function Home(props: PageProps<"/">) {
                 >
                   Moja dostupnosť
                 </a>
-                {isSuperAdmin && (
-                  <a
-                    href={`/?view=admin`}
-                    className={`rounded-md px-3 py-1 font-medium transition ${
-                      view === "admin"
-                        ? "bg-brand-indigo text-white"
-                        : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                    }`}
-                  >
-                    Administrácia
-                  </a>
-                )}
               </div>
             )}
           </div>
