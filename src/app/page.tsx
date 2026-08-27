@@ -150,8 +150,7 @@ export default async function Home(props: PageProps<"/">) {
   }
 
   if (adminView) {
-    const queries = [
-      supabase.from("referee_categories").select("referee_id").eq("category", category),
+    const availabilityQueries = [
       supabase
         .from("availability")
         .select(
@@ -170,12 +169,27 @@ export default async function Home(props: PageProps<"/">) {
         .order("cancel_requested_at"),
     ] as const;
 
-    const [{ data: categoryRefRows }, { data: rows }, { data: pending }] =
-      await Promise.all(queries);
+    // "celoštátny" je trvalé, adminom udelené členstvo — zobrazuje sa vždy.
+    // Pre regióny sa natrvalo zobrazujú len domáci (podľa home_region); ostatní
+    // (napr. celoštátny rozhodca, ktorý si "ponúkol termín") sa zobrazia len
+    // v mesiacoch, kde si tam skutočne niečo vyplnili — nabudúce bez vyplnenia
+    // im tam meno už nesvieti.
+    const baseRefereeIdsQuery =
+      category === "celostatny"
+        ? supabase.from("referee_categories").select("referee_id").eq("category", category)
+        : supabase.from("referees").select("id").eq("home_region", category).eq("active", true);
 
-    const categoryRefereeIds = new Set(
-      (categoryRefRows ?? []).map((r) => r.referee_id as string),
+    const [{ data: baseRows }, { data: rows }, { data: pending }] = await Promise.all([
+      baseRefereeIdsQuery,
+      ...availabilityQueries,
+    ]);
+
+    const baseRefereeIds: string[] = (baseRows ?? []).map((r) =>
+      ("referee_id" in r ? r.referee_id : r.id) as string,
     );
+    const filledRefereeIds = (rows ?? []).map((r) => r.referee_id as string);
+
+    const categoryRefereeIds = new Set([...baseRefereeIds, ...filledRefereeIds]);
 
     if (canSeeAllCategories) {
       adminReferees = allReferees.filter((r) => categoryRefereeIds.has(r.id));
