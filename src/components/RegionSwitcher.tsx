@@ -8,27 +8,17 @@ import { setMyRegion } from "@/app/referee-categories/actions";
 type Props = {
   activeCategory?: Category;
   primaryCategory?: Category;
-  myCategories?: Category[];
   monthParam: string;
 };
 
-export function RegionSwitcher({
-  activeCategory,
-  primaryCategory,
-  myCategories = [],
-  monthParam,
-}: Props) {
+export function RegionSwitcher({ activeCategory, primaryCategory, monthParam }: Props) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  // regióny, kde už rozhodca pôsobí (okrem primárneho/aktívneho) — len navigácia, žiadny zápis
-  const joined = REGIONS.filter(
-    (r) => myCategories.includes(r) && r !== activeCategory && r !== primaryCategory,
-  );
-  // regióny, ktoré si ešte môže "ponúknuť" (pridať sa do nich)
+  // vždy ponúkni všetky ostatné regióny — jednorazová akcia, nič trvalé nesvieti v nav
   const choices = REGIONS.filter(
-    (r) => !myCategories.includes(r) && r !== activeCategory && r !== primaryCategory,
+    (r) => r !== activeCategory && r !== primaryCategory,
   );
   const showPrimaryLink =
     primaryCategory && primaryCategory !== activeCategory;
@@ -44,24 +34,13 @@ export function RegionSwitcher({
             ← {CATEGORY_LABELS[primaryCategory]}
           </a>
         )}
-        {joined.map((region) => (
-          <a
-            key={region}
-            href={`/?month=${monthParam}&view=moje&category=${region}`}
-            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            {CATEGORY_LABELS[region]}
-          </a>
-        ))}
-        {choices.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            + Ponúknuť termín v inom regióne
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          + Ponúknuť termín v inom regióne
+        </button>
       </div>
     );
   }
