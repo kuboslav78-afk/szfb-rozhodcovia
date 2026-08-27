@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import {
   monthGrid,
+  monthLabel,
   monthParam,
   parseMonthParam,
   todayDateStr,
@@ -274,33 +275,44 @@ export default async function Home(props: PageProps<"/">) {
     );
   }
 
-  let unfilledUpcoming: string[] = [];
+  let unfilledThisMonth: string[] = [];
+  let nextUnfilledMonth: { monthParam: string; label: string } | null = null;
+
   if (!adminView && !isAdminSection && myCategories.includes(category)) {
-    const today = todayDateStr();
-    const { data: upcomingMatchDayRows } = await supabase
+    unfilledThisMonth = matchDays.filter((d) => !refereeAvailability[d]);
+
+    const { data: futureMatchDayRows } = await supabase
       .from("match_days")
       .select("match_date")
       .eq("category", category)
-      .gte("match_date", today)
+      .gt("match_date", lastDay)
       .order("match_date")
-      .limit(60);
+      .limit(120);
 
-    const upcomingDates = (upcomingMatchDayRows ?? []).map(
+    const futureDates = (futureMatchDayRows ?? []).map(
       (row) => row.match_date as string,
     );
 
-    if (upcomingDates.length > 0) {
-      const { data: filledRows } = await supabase
+    if (futureDates.length > 0) {
+      const { data: futureFilledRows } = await supabase
         .from("availability")
         .select("available_date")
         .eq("referee_id", referee.id)
         .eq("category", category)
-        .in("available_date", upcomingDates);
+        .in("available_date", futureDates);
 
-      const filledSet = new Set(
-        (filledRows ?? []).map((row) => row.available_date as string),
+      const futureFilledSet = new Set(
+        (futureFilledRows ?? []).map((row) => row.available_date as string),
       );
-      unfilledUpcoming = upcomingDates.filter((d) => !filledSet.has(d));
+      const firstUnfilled = futureDates.find((d) => !futureFilledSet.has(d));
+
+      if (firstUnfilled) {
+        const [year, month] = firstUnfilled.split("-").map(Number);
+        nextUnfilledMonth = {
+          monthParam: monthParam({ year, month }),
+          label: monthLabel({ year, month }),
+        };
+      }
     }
   }
 
@@ -495,7 +507,11 @@ export default async function Home(props: PageProps<"/">) {
               primaryCategory={primaryCategory}
               monthParam={monthParam(monthKey)}
             />
-            <UnfilledReminder dates={unfilledUpcoming} category={category} />
+            <UnfilledReminder
+              dates={unfilledThisMonth}
+              category={category}
+              nextMonth={nextUnfilledMonth}
+            />
             <RefereeCalendar
               key={`${monthParam(monthKey)}-${view}-${category}`}
               monthKey={monthKey}
