@@ -18,6 +18,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { AppHeader } from "@/components/AppHeader";
 import { CategoryTabs } from "@/components/CategoryTabs";
 import { RegionSwitcher } from "@/components/RegionSwitcher";
+import { UnfilledReminder } from "@/components/UnfilledReminder";
 import { RefereeCategoriesManager } from "@/components/RefereeCategoriesManager";
 import { CategoryAdminsManager } from "@/components/CategoryAdminsManager";
 import { AddRefereeForm } from "@/components/AddRefereeForm";
@@ -259,6 +260,36 @@ export default async function Home(props: PageProps<"/">) {
     );
   }
 
+  let unfilledUpcoming: string[] = [];
+  if (!adminView && !isAdminSection && myCategories.includes(category)) {
+    const today = todayDateStr();
+    const { data: upcomingMatchDayRows } = await supabase
+      .from("match_days")
+      .select("match_date")
+      .eq("category", category)
+      .gte("match_date", today)
+      .order("match_date")
+      .limit(60);
+
+    const upcomingDates = (upcomingMatchDayRows ?? []).map(
+      (row) => row.match_date as string,
+    );
+
+    if (upcomingDates.length > 0) {
+      const { data: filledRows } = await supabase
+        .from("availability")
+        .select("available_date")
+        .eq("referee_id", referee.id)
+        .eq("category", category)
+        .in("available_date", upcomingDates);
+
+      const filledSet = new Set(
+        (filledRows ?? []).map((row) => row.available_date as string),
+      );
+      unfilledUpcoming = upcomingDates.filter((d) => !filledSet.has(d));
+    }
+  }
+
   const needsHomeRegionPrompt =
     !isViewer && !referee.home_region && myCategories.length === 0;
 
@@ -451,6 +482,7 @@ export default async function Home(props: PageProps<"/">) {
               myCategories={myCategories}
               monthParam={monthParam(monthKey)}
             />
+            <UnfilledReminder dates={unfilledUpcoming} category={category} />
             <RefereeCalendar
               key={`${monthParam(monthKey)}-${view}-${category}`}
               monthKey={monthKey}

@@ -223,29 +223,22 @@ export async function adminSetHomeRegion(
   revalidatePath("/");
 }
 
-/** Admin vie z rozhodcu urobiť plnohodnotného (super) administrátora, alebo ho odvolať. */
-export async function setSuperAdmin(refereeId: string, enabled: boolean) {
+/**
+ * Admin vie nastaviť rolu rozhodcu — bežný rozhodca, len prehľadový "viewer"
+ * (vidí všetky kategórie, nič neupraví), alebo plnohodnotný Super Admin.
+ * Ide o jeden prepínač (nie nezávislé checkboxy), keďže tieto tri stavy sa
+ * navzájom vylučujú.
+ */
+export async function setRefereeRole(
+  refereeId: string,
+  role: "referee" | "viewer" | "admin",
+) {
   await requireSuperAdmin();
 
   const admin = serviceClient();
   const { error } = await admin
     .from("referees")
-    .update({ role: enabled ? "admin" : "referee" })
-    .eq("id", refereeId);
-
-  if (error) throw new Error(error.message);
-
-  revalidatePath("/");
-}
-
-/** Admin vie niekomu udeliť len prehľadový (read-only) prístup ku všetkým kategóriám. */
-export async function setViewer(refereeId: string, enabled: boolean) {
-  await requireSuperAdmin();
-
-  const admin = serviceClient();
-  const { error } = await admin
-    .from("referees")
-    .update({ role: enabled ? "viewer" : "referee" })
+    .update({ role })
     .eq("id", refereeId);
 
   if (error) throw new Error(error.message);

@@ -82,6 +82,15 @@ function HomeRegionCell({ referee }: { referee: Referee }) {
   const [, startTransition] = useTransition();
 
   function handleChange(next: Category | "") {
+    if (
+      value &&
+      value !== next &&
+      !window.confirm(
+        `Zmeniť domáci región rozhodcu ${referee.full_name} z "${CATEGORY_LABELS[value]}" na ${next ? `"${CATEGORY_LABELS[next]}"` : "žiadny"}?`,
+      )
+    ) {
+      return;
+    }
     setValue(next);
     startTransition(async () => {
       await adminSetHomeRegion(referee.id, next || null);
@@ -121,9 +130,18 @@ export function RefereeCategoriesManager({
   );
   const [isPending, startTransition] = useTransition();
 
-  function toggle(refereeId: string, category: Category) {
+  function toggle(refereeId: string, refereeName: string, category: Category) {
     const current = categories.get(refereeId) ?? new Set<Category>();
     const next = !current.has(category);
+
+    if (
+      !next &&
+      !window.confirm(
+        `Odobrať ${refereeName} kategóriu ${CATEGORY_LABELS[category]}? Stratí prístup k hracím dňom a vyplnenej dostupnosti v tejto kategórii.`,
+      )
+    ) {
+      return;
+    }
 
     setCategories((prev) => {
       const copy = new Map(prev);
@@ -236,7 +254,7 @@ export function RefereeCategoriesManager({
                         type="checkbox"
                         disabled={isPending}
                         checked={refereeCategories.has(category)}
-                        onChange={() => toggle(referee.id, category)}
+                        onChange={() => toggle(referee.id, referee.full_name, category)}
                         className="h-4 w-4 accent-brand-indigo"
                       />
                     </td>

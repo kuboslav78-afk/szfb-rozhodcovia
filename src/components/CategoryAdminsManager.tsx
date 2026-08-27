@@ -2,54 +2,61 @@
 
 import { useState, useTransition } from "react";
 import { CATEGORIES, CATEGORY_LABELS, type Category } from "@/lib/categories";
-import { setCategoryAdmin, setSuperAdmin, setViewer } from "@/app/admin-users/actions";
+import { setCategoryAdmin, setRefereeRole } from "@/app/admin-users/actions";
 
-type Referee = { id: string; full_name: string; role: "admin" | "referee" | "viewer" };
+type Role = "admin" | "referee" | "viewer";
+type Referee = { id: string; full_name: string; role: Role };
 
 type Props = {
   referees: Referee[];
   initialAdmins: Record<string, Category[]>;
 };
 
-function SuperAdminCell({ referee }: { referee: Referee }) {
-  const [checked, setChecked] = useState(referee.role === "admin");
+const ROLE_LABELS: Record<Role, string> = {
+  referee: "Rozhodca",
+  viewer: "Viewer",
+  admin: "Super Admin",
+};
+
+const ROLE_CONFIRM_MESSAGE: Record<Role, (name: string) => string> = {
+  referee: (name) => `Odobrať ${name} rolu a vrátiť ho na bežného rozhodcu?`,
+  viewer: (name) =>
+    `Nastaviť ${name} ako Viewer? Uvidí prehľad všetkých kategórií, ale stratí možnosť čokoľvek upravovať (vrátane vlastnej dostupnosti, ak ju doteraz vypĺňal).`,
+  admin: (name) =>
+    `Urobiť z ${name} plnohodnotného Super Admina? Bude mať plný prístup ku všetkému, vrátane správy ostatných adminov.`,
+};
+
+function RoleCell({ referee }: { referee: Referee }) {
+  const [role, setRole] = useState<Role>(referee.role);
   const [, startTransition] = useTransition();
 
-  function handleChange(next: boolean) {
-    setChecked(next);
+  function handleChange(next: Role) {
+    if (next === role) return;
+    if (!window.confirm(ROLE_CONFIRM_MESSAGE[next](referee.full_name))) {
+      return;
+    }
+    setRole(next);
     startTransition(async () => {
-      await setSuperAdmin(referee.id, next);
+      await setRefereeRole(referee.id, next);
     });
   }
 
   return (
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={(e) => handleChange(e.target.checked)}
-      className="h-4 w-4 accent-brand-red"
-    />
-  );
-}
-
-function ViewerCell({ referee }: { referee: Referee }) {
-  const [checked, setChecked] = useState(referee.role === "viewer");
-  const [, startTransition] = useTransition();
-
-  function handleChange(next: boolean) {
-    setChecked(next);
-    startTransition(async () => {
-      await setViewer(referee.id, next);
-    });
-  }
-
-  return (
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={(e) => handleChange(e.target.checked)}
-      className="h-4 w-4 accent-zinc-500"
-    />
+    <select
+      value={role}
+      onChange={(e) => handleChange(e.target.value as Role)}
+      className={`rounded-md border bg-white px-1.5 py-1 text-xs outline-none focus:border-brand-indigo dark:bg-zinc-900 ${
+        role === "admin"
+          ? "border-brand-red font-semibold text-brand-red"
+          : role === "viewer"
+            ? "border-zinc-300 font-semibold text-zinc-500 dark:border-zinc-700"
+            : "border-zinc-200 text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
+      }`}
+    >
+      <option value="referee">{ROLE_LABELS.referee}</option>
+      <option value="viewer">{ROLE_LABELS.viewer}</option>
+      <option value="admin">{ROLE_LABELS.admin}</option>
+    </select>
   );
 }
 
@@ -63,9 +70,18 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
   );
   const [isPending, startTransition] = useTransition();
 
-  function toggle(refereeId: string, category: Category) {
+  function toggle(refereeId: string, refereeName: string, category: Category) {
     const current = admins.get(refereeId) ?? new Set<Category>();
     const next = !current.has(category);
+
+    if (
+      !next &&
+      !window.confirm(
+        `Odobrať ${refereeName} admin práva pre región ${CATEGORY_LABELS[category]}?`,
+      )
+    ) {
+      return;
+    }
 
     setAdmins((prev) => {
       const copy = new Map(prev);
@@ -116,7 +132,8 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
             <span className="font-semibold text-brand-red">Super Admin</span>{" "}
             = plný prístup ku všetkému, vrátane správy ostatných adminov —
             udeľuj opatrne. <span className="font-semibold">Viewer</span> = vidí
-            prehľad všetkých kategórií, ale nič nemôže upravovať.
+            prehľad všetkých kategórií, ale nič nemôže upravovať (ani vlastnú
+            dostupnosť, ak ju rozhodca predtým vypĺňal).
           </p>
         </div>
         <button
@@ -135,11 +152,8 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
               <th className="px-2 py-2 text-left font-semibold text-zinc-600 dark:text-zinc-300">
                 Rozhodca
               </th>
-              <th className="border-l border-zinc-200 px-2 py-2 text-center text-xs font-semibold text-brand-red dark:border-zinc-800">
-                Super Admin
-              </th>
               <th className="border-l border-zinc-200 px-2 py-2 text-center text-xs font-semibold text-zinc-500 dark:border-zinc-800">
-                Viewer
+                Rola
               </th>
               {CATEGORIES.map((category) => (
                 <th
@@ -164,10 +178,7 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
                     {referee.full_name}
                   </td>
                   <td className="border-l border-zinc-100 px-2 py-2 text-center dark:border-zinc-900">
-                    <SuperAdminCell referee={referee} />
-                  </td>
-                  <td className="border-l border-zinc-100 px-2 py-2 text-center dark:border-zinc-900">
-                    <ViewerCell referee={referee} />
+                    <RoleCell referee={referee} />
                   </td>
                   {CATEGORIES.map((category) => (
                     <td key={category} className="px-2 py-2 text-center">
@@ -175,7 +186,7 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
                         type="checkbox"
                         disabled={isPending}
                         checked={refereeAdmins.has(category)}
-                        onChange={() => toggle(referee.id, category)}
+                        onChange={() => toggle(referee.id, referee.full_name, category)}
                         className="h-4 w-4 accent-brand-indigo"
                       />
                     </td>
