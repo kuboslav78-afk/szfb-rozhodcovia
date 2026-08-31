@@ -29,9 +29,16 @@ export const LEAGUES_BY_CATEGORY: Partial<Record<Category, LeagueInfo[]>> = {
   zapad: [
     { code: "M2-ZA", label: "2. liga mužov Západ" },
     { code: "SZ-ZA", label: "Liga starších žiakov Západ" },
+    { code: "DOR-ZA", label: "Liga dorastencov Západ" },
     { code: "MZ-ZA", label: "Liga mladších žiakov Západ" },
   ],
-  bratislava: [{ code: "M2-BA", label: "2. liga mužov Bratislava" }],
+  bratislava: [
+    { code: "M2-BA", label: "2. liga mužov Bratislava" },
+    { code: "SZ-BA", label: "Liga starších žiakov Bratislava" },
+    { code: "DOR-BA", label: "Liga dorastencov Bratislava" },
+    { code: "JUN-BA", label: "Liga juniorov Bratislava" },
+    { code: "MZ-BA", label: "Liga mladších žiakov Bratislava" },
+  ],
 };
 
 export function leaguesForCategory(category: Category): LeagueInfo[] {
