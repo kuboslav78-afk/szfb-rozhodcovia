@@ -98,12 +98,18 @@ export default async function Home(props: PageProps<"/">) {
 
   const { data: matchDayRows } = await supabase
     .from("match_days")
-    .select("match_date")
+    .select("match_date, leagues")
     .eq("category", category)
     .gte("match_date", firstDay)
     .lte("match_date", lastDay);
 
   const matchDays = (matchDayRows ?? []).map((row) => row.match_date as string);
+  const matchDayLeagues: Record<string, string[]> = Object.fromEntries(
+    (matchDayRows ?? []).map((row) => [
+      row.match_date as string,
+      (row.leagues as string[] | null) ?? [],
+    ]),
+  );
 
   let refereeAvailability: Record<string, DayEntry> = {};
   type RefereeRow = {
@@ -483,6 +489,7 @@ export default async function Home(props: PageProps<"/">) {
                 monthKey={monthKey}
                 category={category}
                 initialMatchDays={matchDays}
+                initialLeagues={matchDayLeagues}
               />
             )}
             <AdminOverview
@@ -521,6 +528,7 @@ export default async function Home(props: PageProps<"/">) {
               monthKey={monthKey}
               category={category}
               matchDays={matchDays}
+              matchDayLeagues={matchDayLeagues}
               initialAvailability={refereeAvailability}
               todayDateStr={todayDateStr()}
             />

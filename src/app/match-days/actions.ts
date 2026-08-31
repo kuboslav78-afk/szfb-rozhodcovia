@@ -40,3 +40,29 @@ export async function setMatchDay(
 
   revalidatePath("/");
 }
+
+export async function setMatchDayLeagues(
+  date: string,
+  category: Category,
+  leagues: string[],
+) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Pre túto akciu sa musíš prihlásiť.");
+  }
+
+  const { error } = await supabase
+    .from("match_days")
+    .update({ leagues })
+    .eq("match_date", date)
+    .eq("category", category);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/");
+}

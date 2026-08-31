@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { AvailabilityStatus } from "@/app/availability/actions";
+import type { Category } from "@/lib/categories";
+import { leaguesForCategory } from "@/lib/leagues";
 
 const REASON_PRESETS = [
   "Hrám v ten deň zápas",
@@ -16,6 +18,8 @@ const STATUS_LABELS: Record<AvailabilityStatus, string> = {
 
 type Props = {
   dateStr: string;
+  category: Category;
+  leagues: string[];
   currentStatus: AvailabilityStatus | null;
   currentReason: string | null;
   currentAvailableFrom: string | null;
@@ -44,6 +48,8 @@ function formatDateLabel(dateStr: string) {
 
 export function DayStatusModal({
   dateStr,
+  category,
+  leagues,
   currentStatus,
   currentReason,
   currentAvailableFrom,
@@ -107,6 +113,7 @@ export function DayStatusModal({
             )}
           </div>
         ) : !pickingReason ? (
+          <>
           <div className="mt-4 space-y-2">
             <button
               type="button"
@@ -145,6 +152,20 @@ export function DayStatusModal({
               </button>
             )}
           </div>
+
+          {leagues.length > 0 && (
+            <div className="mt-3 rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
+              Hrajú sa:{" "}
+              {leagues
+                .map(
+                  (code) =>
+                    leaguesForCategory(category).find((l) => l.code === code)
+                      ?.label ?? code,
+                )
+                .join(", ")}
+            </div>
+          )}
+          </>
         ) : (
           <div className="mt-4">
             <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">

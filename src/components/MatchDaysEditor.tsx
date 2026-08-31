@@ -7,13 +7,15 @@ import {
   toDateStr,
   weekdayLabels,
 } from "@/lib/dates";
-import { setMatchDay } from "@/app/match-days/actions";
+import { setMatchDay, setMatchDayLeagues } from "@/app/match-days/actions";
 import type { Category } from "@/lib/categories";
+import { leaguesForCategory } from "@/lib/leagues";
 
 type Props = {
   monthKey: MonthKey;
   category: Category;
   initialMatchDays: string[];
+  initialLeagues: Record<string, string[]>;
 };
 
 function formatSummary(dates: string[]) {
@@ -24,12 +26,39 @@ function formatSummary(dates: string[]) {
     .join(", ");
 }
 
-export function MatchDaysEditor({ monthKey, category, initialMatchDays }: Props) {
+function formatDayLabel(dateStr: string) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString("sk-SK", { weekday: "short", day: "numeric", month: "numeric" });
+}
+
+export function MatchDaysEditor({
+  monthKey,
+  category,
+  initialMatchDays,
+  initialLeagues,
+}: Props) {
   const [matchDays, setMatchDays] = useState(new Set(initialMatchDays));
+  const [leagues, setLeaguesState] = useState(initialLeagues);
   const [collapsed, setCollapsed] = useState(initialMatchDays.length > 0);
   const [isPending, startTransition] = useTransition();
 
+  const availableLeagues = leaguesForCategory(category);
+
   const cells = monthGrid(monthKey);
+
+  function toggleLeague(date: string, code: string) {
+    const current = leagues[date] ?? [];
+    const next = current.includes(code)
+      ? current.filter((c) => c !== code)
+      : [...current, code];
+
+    setLeaguesState((prev) => ({ ...prev, [date]: next }));
+
+    startTransition(async () => {
+      await setMatchDayLeagues(date, category, next);
+    });
+  }
 
   function handleClick(day: number) {
     const dateStr = toDateStr(monthKey.year, monthKey.month, day);
@@ -130,6 +159,44 @@ export function MatchDaysEditor({ monthKey, category, initialMatchDays }: Props)
           );
         })}
       </div>
+
+      {availableLeagues.length > 0 && matchDays.size > 0 && (
+        <div className="mt-6 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+          <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300">
+            Ktoré ligy sa v daný deň hrajú?
+          </p>
+          <div className="mt-3 space-y-3">
+            {Array.from(matchDays)
+              .sort()
+              .map((date) => (
+                <div key={date} className="flex flex-wrap items-center gap-2">
+                  <span className="w-16 shrink-0 text-xs font-semibold capitalize text-zinc-500">
+                    {formatDayLabel(date)}
+                  </span>
+                  {availableLeagues.map((league) => {
+                    const active = (leagues[date] ?? []).includes(league.code);
+                    return (
+                      <button
+                        key={league.code}
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => toggleLeague(date, league.code)}
+                        title={league.label}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition disabled:cursor-default ${
+                          active
+                            ? "border-brand-indigo bg-brand-indigo text-white"
+                            : "border-zinc-300 text-zinc-500 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        {league.code}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -30,6 +30,7 @@ type Props = {
   monthKey: MonthKey;
   category: Category;
   matchDays: string[];
+  matchDayLeagues: Record<string, string[]>;
   initialAvailability: Record<string, DayEntry>;
   todayDateStr: string;
 };
@@ -56,6 +57,7 @@ export function RefereeCalendar({
   monthKey,
   category,
   matchDays,
+  matchDayLeagues,
   initialAvailability,
   todayDateStr: today,
 }: Props) {
@@ -220,6 +222,8 @@ export function RefereeCalendar({
       {selectedDate && (
         <DayStatusModal
           dateStr={selectedDate}
+          category={category}
+          leagues={matchDayLeagues[selectedDate] ?? []}
           currentStatus={selectedEntry?.status ?? null}
           currentReason={selectedEntry?.reason ?? null}
           currentAvailableFrom={selectedEntry?.availableFrom ?? null}
