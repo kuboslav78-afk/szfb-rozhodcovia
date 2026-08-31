@@ -445,7 +445,11 @@ export default async function Home(props: PageProps<"/">) {
           </div>
 
           {!isAdminSection && (
-            <MonthNav monthKey={monthKey} view={canSeeAdmin ? view : undefined} />
+            <MonthNav
+              monthKey={monthKey}
+              view={canSeeAdmin ? view : undefined}
+              category={category}
+            />
           )}
         </div>
 
