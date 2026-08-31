@@ -26,6 +26,12 @@ export const LEAGUES_BY_CATEGORY: Partial<Record<Category, LeagueInfo[]>> = {
     { code: "MZ-VY", label: "Liga mladších žiakov Východ" },
   ],
   stred: [{ code: "M2-ST", label: "2. liga mužov Stred" }],
+  zapad: [
+    { code: "M2-ZA", label: "2. liga mužov Západ" },
+    { code: "SZ-ZA", label: "Liga starších žiakov Západ" },
+    { code: "MZ-ZA", label: "Liga mladších žiakov Západ" },
+  ],
+  bratislava: [{ code: "M2-BA", label: "2. liga mužov Bratislava" }],
 };
 
 export function leaguesForCategory(category: Category): LeagueInfo[] {
