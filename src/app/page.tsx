@@ -16,6 +16,7 @@ import { RefereeCalendar } from "@/components/RefereeCalendar";
 import { AdminOverview } from "@/components/AdminOverview";
 import { MatchDaysEditor } from "@/components/MatchDaysEditor";
 import { Sidebar } from "@/components/Sidebar";
+import { PageTitle } from "@/components/PageTitle";
 import { CategoryTabs } from "@/components/CategoryTabs";
 import { RegionSwitcher } from "@/components/RegionSwitcher";
 import { UnfilledReminder } from "@/components/UnfilledReminder";
@@ -342,13 +343,13 @@ export default async function Home(props: PageProps<"/">) {
         <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">
+            <PageTitle>
               {isAdminSection
                 ? "Administrácia"
                 : adminView
                   ? "Prehľad dostupnosti"
                   : "Moja dostupnosť"}
-            </h1>
+            </PageTitle>
 
             {isAdminSection ? (
               <a

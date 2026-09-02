@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/Sidebar";
+import { PageTitle } from "@/components/PageTitle";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { getPendingNominationCount } from "@/lib/nominations";
 
@@ -29,9 +30,7 @@ export default async function ProfilPage() {
             ← Späť na kalendár
           </Link>
 
-          <h1 className="mb-6 text-lg font-semibold text-zinc-800 dark:text-zinc-100">
-            Môj profil
-          </h1>
+          <PageTitle className="mb-6">Môj profil</PageTitle>
 
           <div className="mb-6 rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
             <dl className="space-y-2 text-sm">

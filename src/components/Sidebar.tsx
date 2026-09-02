@@ -108,29 +108,25 @@ function NavLink({ item, active, onNavigate }: { item: NavItem; active: boolean;
     <Link
       href={item.href}
       onClick={onNavigate}
-      className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
+      className={`flex items-center gap-3 border-l-[3px] py-2.5 pr-3 pl-3 text-xs font-bold tracking-wide uppercase transition ${
         active
-          ? "bg-brand-indigo text-white"
-          : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          ? "border-brand-indigo bg-brand-indigo/8 text-brand-indigo dark:bg-brand-indigo/15"
+          : "border-transparent text-zinc-500 hover:border-zinc-200 hover:bg-zinc-50 hover:text-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-800 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
       }`}
     >
-      <Icon className="h-5 w-5 shrink-0" />
+      <Icon className="h-4.5 w-4.5 shrink-0" />
       <span className="flex-1">{item.label}</span>
       {item.soon && (
         <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            active ? "bg-white/20 text-white" : "bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
+            active ? "bg-brand-indigo/15 text-brand-indigo" : "bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
           }`}
         >
           Čoskoro
         </span>
       )}
       {!item.soon && item.badge ? (
-        <span
-          className={`flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1 text-[11px] font-bold ${
-            active ? "bg-white text-brand-indigo" : "bg-brand-red text-white"
-          }`}
-        >
+        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand-red px-1 text-[11px] font-bold text-white">
           {item.badge}
         </span>
       ) : null}

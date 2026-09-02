@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/Sidebar";
+import { PageTitle } from "@/components/PageTitle";
 import { NominationCategoryTabs } from "@/components/NominationCategoryTabs";
 import { COMPETITIONS } from "@/lib/szfb-scraper";
 import { NominationsManager } from "@/components/NominationsManager";
@@ -75,9 +76,7 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-10">
-            <h1 className="mb-6 text-lg font-semibold text-zinc-800 dark:text-zinc-100">
-              Moje nominácie
-            </h1>
+            <PageTitle className="mb-6">Moje nominácie</PageTitle>
             <MyNominations nominations={nominations} />
           </main>
         </div>
@@ -128,9 +127,7 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-10">
-          <h1 className="mb-6 text-lg font-semibold text-zinc-800 dark:text-zinc-100">
-            Nominácie
-          </h1>
+          <PageTitle className="mb-6">Nominácie</PageTitle>
           <NominationCategoryTabs active={category} />
           <NominationsManager
             key={category}
