@@ -102,6 +102,31 @@ export async function setMatchReferee(
 
 export type NominationStatus = "draft" | "sent" | "confirmed" | "rejected";
 
+/** Rozhodca potvrdí alebo zamietne vlastnú (odoslanú) nomináciu. */
+export async function respondToNomination(
+  matchId: string,
+  response: "confirmed" | "rejected",
+) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Pre túto akciu sa musíš prihlásiť.");
+  }
+
+  const { error } = await supabase.rpc("respond_to_nomination", {
+    p_match_id: matchId,
+    p_response: response,
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/nominations");
+}
+
 export async function setMatchRefereeStatus(
   matchId: string,
   slot: 1 | 2,

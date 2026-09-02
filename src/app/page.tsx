@@ -15,8 +15,7 @@ import { MonthNav } from "@/components/MonthNav";
 import { RefereeCalendar } from "@/components/RefereeCalendar";
 import { AdminOverview } from "@/components/AdminOverview";
 import { MatchDaysEditor } from "@/components/MatchDaysEditor";
-import { SignOutButton } from "@/components/SignOutButton";
-import { AppHeader } from "@/components/AppHeader";
+import { Sidebar } from "@/components/Sidebar";
 import { CategoryTabs } from "@/components/CategoryTabs";
 import { RegionSwitcher } from "@/components/RegionSwitcher";
 import { UnfilledReminder } from "@/components/UnfilledReminder";
@@ -27,6 +26,7 @@ import {
   CancellationRequests,
   type CancellationRequestItem,
 } from "@/components/CancellationRequests";
+import { getPendingNominationCount } from "@/lib/nominations";
 import type { AvailabilityStatus } from "@/app/availability/actions";
 
 type DayEntry = {
@@ -325,113 +325,22 @@ export default async function Home(props: PageProps<"/">) {
   const needsHomeRegionPrompt =
     !isViewer && !referee.home_region && myCategories.length === 0;
 
-  return (
-    <>
-      {needsHomeRegionPrompt && <HomeRegionPrompt />}
-      <AppHeader
-        right={
-          <div className="flex items-center gap-3 sm:gap-4">
-            {isSuperAdmin && (
-              <a
-                href={`/?view=admin`}
-                className={`hidden rounded-lg border px-3 py-1.5 text-sm font-medium transition sm:block ${
-                  view === "admin"
-                    ? "border-white bg-white text-brand-indigo"
-                    : "border-white/30 text-white hover:bg-white/10"
-                }`}
-              >
-                Administrácia
-              </a>
-            )}
-            {isSuperAdmin && (
-              <a
-                href={`/?view=admin`}
-                aria-label="Administrácia"
-                title="Administrácia"
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-white transition sm:hidden ${
-                  view === "admin"
-                    ? "border-white bg-white/20"
-                    : "border-white/30 hover:bg-white/10"
-                }`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-4 w-4"
-                >
-                  <path d="M12 2 4 5.5v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10v-6L12 2Z" />
-                </svg>
-              </a>
-            )}
-            {isSuperAdmin && (
-              <a
-                href="/nominations"
-                className="hidden rounded-lg border border-white/30 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white/10 sm:block"
-              >
-                Nominácie
-              </a>
-            )}
-            {isSuperAdmin && (
-              <a
-                href="/nominations"
-                aria-label="Nominácie"
-                title="Nominácie"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/30 text-white transition hover:bg-white/10 sm:hidden"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-4 w-4"
-                >
-                  <path d="M9 11l3 3L22 4" />
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                </svg>
-              </a>
-            )}
-            <a
-              href="/profil"
-              className="hidden text-sm font-medium text-white hover:underline sm:block"
-            >
-              {referee.full_name}
-              {isSuperAdmin ? " · admin" : isViewer ? " · viewer" : ""}
-            </a>
-            <a
-              href="/profil"
-              aria-label="Môj profil"
-              title="Môj profil"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/30 text-white transition hover:bg-white/10 sm:hidden"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4"
-              >
-                <circle cx="12" cy="8" r="4" />
-                <path d="M4 20c0-4 3.5-7 8-7s8 3 8 7" />
-              </svg>
-            </a>
-            <SignOutButton />
-          </div>
-        }
-      />
+  const pendingNominations = await getPendingNominationCount(supabase, referee.id);
 
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+  return (
+    <div className="lg:flex">
+      <Sidebar
+        current={isAdminSection ? "administracia" : "dostupnost"}
+        refereeName={referee.full_name}
+        roleLabel={isSuperAdmin ? "Administrátor" : isViewer ? "Viewer" : null}
+        isAdmin={isSuperAdmin}
+        pendingNominations={pendingNominations}
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        {needsHomeRegionPrompt && <HomeRegionPrompt />}
+
+        <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">
               {isAdminSection
@@ -564,7 +473,8 @@ export default async function Home(props: PageProps<"/">) {
             />
           </>
         )}
-      </main>
-    </>
+        </main>
+      </div>
+    </div>
   );
 }

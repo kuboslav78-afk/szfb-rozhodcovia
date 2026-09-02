@@ -1,0 +1,277 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { useState, type ReactNode, type SVGProps } from "react";
+import { SignOutButton } from "@/components/SignOutButton";
+
+export type NavKey = "dostupnost" | "nominacie" | "vzdelavanie" | "testovanie" | "administracia";
+
+type IconProps = SVGProps<SVGSVGElement>;
+
+function CalendarIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="3" y="4.5" width="18" height="16" rx="2" />
+      <path d="M8 2.5v4M16 2.5v4M3 9.5h18" />
+    </svg>
+  );
+}
+
+function ClipboardIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  );
+}
+
+function BookIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
+    </svg>
+  );
+}
+
+function ChecklistIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="m3 7 2 2 3-3" />
+      <path d="m3 15 2 2 3-3" />
+      <path d="M11 7h10M11 15h10" />
+    </svg>
+  );
+}
+
+function ShieldIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 2 4 5.5v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10v-6L12 2Z" />
+    </svg>
+  );
+}
+
+function MenuIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  );
+}
+
+function CloseIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M18 6 6 18M6 6l18 18" />
+    </svg>
+  );
+}
+
+type NavItem = {
+  key: NavKey;
+  href: string;
+  label: string;
+  icon: (props: IconProps) => ReactNode;
+  badge?: number;
+  soon?: boolean;
+};
+
+type Props = {
+  current: NavKey | null;
+  refereeName: string;
+  roleLabel: string | null;
+  isAdmin: boolean;
+  pendingNominations: number;
+};
+
+function Brand() {
+  return (
+    <Link href="/" className="flex items-center bg-brand-indigo px-5 py-4">
+      <Image
+        src="/brand/szfb-logo-white.png"
+        alt="Slovenský zväz florbalu"
+        width={220}
+        height={34}
+        className="h-7 w-auto"
+        priority
+      />
+    </Link>
+  );
+}
+
+function NavLink({ item, active, onNavigate }: { item: NavItem; active: boolean; onNavigate?: () => void }) {
+  const Icon = item.icon;
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
+        active
+          ? "bg-brand-indigo text-white"
+          : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900"
+      }`}
+    >
+      <Icon className="h-5 w-5 shrink-0" />
+      <span className="flex-1">{item.label}</span>
+      {item.soon && (
+        <span
+          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+            active ? "bg-white/20 text-white" : "bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+          }`}
+        >
+          Čoskoro
+        </span>
+      )}
+      {!item.soon && item.badge ? (
+        <span
+          className={`flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1 text-[11px] font-bold ${
+            active ? "bg-white text-brand-indigo" : "bg-brand-red text-white"
+          }`}
+        >
+          {item.badge}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
+function Nav({
+  current,
+  isAdmin,
+  pendingNominations,
+  onNavigate,
+}: {
+  current: NavKey | null;
+  isAdmin: boolean;
+  pendingNominations: number;
+  onNavigate?: () => void;
+}) {
+  const items: NavItem[] = [
+    { key: "dostupnost", href: "/", label: "Dostupnosť", icon: CalendarIcon },
+    { key: "nominacie", href: "/nominations", label: "Nominácie", icon: ClipboardIcon, badge: pendingNominations },
+    { key: "vzdelavanie", href: "/vzdelavanie", label: "Vzdelávanie", icon: BookIcon, soon: true },
+    { key: "testovanie", href: "/testovanie", label: "Testovanie", icon: ChecklistIcon, soon: true },
+  ];
+
+  return (
+    <nav className="flex flex-col gap-1">
+      {items.map((item) => (
+        <NavLink key={item.key} item={item} active={current === item.key} onNavigate={onNavigate} />
+      ))}
+      {isAdmin && (
+        <>
+          <div className="my-2 h-px bg-zinc-100 dark:bg-zinc-900" />
+          <NavLink
+            item={{ key: "administracia", href: "/?view=admin", label: "Administrácia", icon: ShieldIcon }}
+            active={current === "administracia"}
+            onNavigate={onNavigate}
+          />
+        </>
+      )}
+    </nav>
+  );
+}
+
+function UserFooter({ refereeName, roleLabel }: { refereeName: string; roleLabel: string | null }) {
+  const initial = refereeName.trim().charAt(0).toUpperCase() || "?";
+  return (
+    <div className="flex items-center gap-3 border-t border-zinc-100 p-4 dark:border-zinc-900">
+      <Link
+        href="/profil"
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg transition hover:opacity-80"
+      >
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-indigo/10 text-sm font-bold text-brand-indigo">
+          {initial}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">{refereeName}</p>
+          {roleLabel && <p className="truncate text-xs text-zinc-400">{roleLabel}</p>}
+        </div>
+      </Link>
+      <SignOutButton compact />
+    </div>
+  );
+}
+
+export function Sidebar({ current, refereeName, roleLabel, isAdmin, pendingNominations }: Props) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <header className="sticky top-0 z-30 lg:hidden">
+        <div className="flex items-center justify-between bg-brand-indigo px-4 py-3">
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/brand/szfb-logo-white.png"
+              alt="Slovenský zväz florbalu"
+              width={180}
+              height={28}
+              className="h-6 w-auto"
+              priority
+            />
+          </Link>
+          <button
+            type="button"
+            aria-label="Otvoriť menu"
+            onClick={() => setOpen(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/30 text-white transition hover:bg-white/10"
+          >
+            <MenuIcon className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="h-[4px] bg-brand-red" />
+      </header>
+
+      {open && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            aria-label="Zavrieť menu"
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setOpen(false)}
+          />
+          <div className="relative flex h-full w-72 flex-col bg-white dark:bg-zinc-950">
+            <div className="flex items-center justify-between bg-brand-indigo px-5 py-4">
+              <Image
+                src="/brand/szfb-logo-white.png"
+                alt="Slovenský zväz florbalu"
+                width={180}
+                height={28}
+                className="h-6 w-auto"
+              />
+              <button
+                type="button"
+                aria-label="Zavrieť menu"
+                onClick={() => setOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/30 text-white transition hover:bg-white/10"
+              >
+                <CloseIcon className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="h-[4px] bg-brand-red" />
+            <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
+              <Nav
+                current={current}
+                isAdmin={isAdmin}
+                pendingNominations={pendingNominations}
+                onNavigate={() => setOpen(false)}
+              />
+            </div>
+            <UserFooter refereeName={refereeName} roleLabel={roleLabel} />
+          </div>
+        </div>
+      )}
+
+      <aside className="sticky top-0 z-40 hidden h-screen w-64 shrink-0 flex-col border-r border-zinc-100 bg-white dark:border-zinc-900 dark:bg-zinc-950 lg:flex">
+        <Brand />
+        <div className="h-[4px] bg-brand-red" />
+        <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
+          <Nav current={current} isAdmin={isAdmin} pendingNominations={pendingNominations} />
+        </div>
+        <UserFooter refereeName={refereeName} roleLabel={roleLabel} />
+      </aside>
+    </>
+  );
+}
