@@ -110,15 +110,39 @@ function ImportPanel({ competitions }: { competitions: CompetitionConfig[] }) {
   const [collapsed, setCollapsed] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [results, setResults] = useState<Record<string, string>>({});
+  const [importingAllId, setImportingAllId] = useState<string | null>(null);
+  const [allSummary, setAllSummary] = useState<string | null>(null);
+
+  async function importOne(id: string) {
+    try {
+      const { created, updated, total } = await importCompetition(id);
+      setResults((prev) => ({ ...prev, [id]: `${created} nových, ${updated} aktualizovaných (spolu ${total})` }));
+      return { created, updated };
+    } catch (error) {
+      setResults((prev) => ({ ...prev, [id]: error instanceof Error ? error.message : "Chyba" }));
+      return { created: 0, updated: 0 };
+    }
+  }
 
   function handleImport(id: string) {
     startTransition(async () => {
-      try {
-        const { created, updated, total } = await importCompetition(id);
-        setResults((prev) => ({ ...prev, [id]: `${created} nových, ${updated} aktualizovaných (spolu ${total})` }));
-      } catch (error) {
-        setResults((prev) => ({ ...prev, [id]: error instanceof Error ? error.message : "Chyba" }));
+      await importOne(id);
+    });
+  }
+
+  function handleImportAll() {
+    setAllSummary(null);
+    startTransition(async () => {
+      let created = 0;
+      let updated = 0;
+      for (const c of competitions) {
+        setImportingAllId(c.id);
+        const result = await importOne(c.id);
+        created += result.created;
+        updated += result.updated;
       }
+      setImportingAllId(null);
+      setAllSummary(`Hotovo: ${created} nových, ${updated} aktualizovaných naprieč ${competitions.length} súťažami.`);
     });
   }
 
@@ -135,15 +159,29 @@ function ImportPanel({ competitions }: { competitions: CompetitionConfig[] }) {
       <div className="mb-6 flex items-center justify-between rounded-xl border border-zinc-200 px-5 py-4 dark:border-zinc-800">
         <div>
           <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Import zo szfb.sk</h2>
-          <p className="mt-1 text-xs text-zinc-500">Nahraj alebo aktualizuj zápasy jednotlivých súťaží.</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            {isPending && importingAllId
+              ? `Importujem ${competitions.findIndex((c) => c.id === importingAllId) + 1}/${competitions.length}…`
+              : (allSummary ?? "Nahraj alebo aktualizuj zápasy súťaží tohto regiónu.")}
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setCollapsed(false)}
-          className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-        >
-          Spravovať
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={handleImportAll}
+            className="rounded-lg bg-brand-indigo px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-indigo-dark disabled:opacity-60"
+          >
+            Importovať všetko
+          </button>
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            Spravovať
+          </button>
+        </div>
       </div>
     );
   }
@@ -152,14 +190,29 @@ function ImportPanel({ competitions }: { competitions: CompetitionConfig[] }) {
     <div className="mb-6 rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
       <div className="flex items-start justify-between gap-4">
         <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Import zo szfb.sk</h2>
-        <button
-          type="button"
-          onClick={() => setCollapsed(true)}
-          className="shrink-0 rounded-lg bg-brand-indigo px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-indigo-dark"
-        >
-          Hotovo
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={handleImportAll}
+            className="rounded-lg bg-brand-indigo px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-indigo-dark disabled:opacity-60"
+          >
+            {isPending && importingAllId
+              ? `Importujem ${competitions.findIndex((c) => c.id === importingAllId) + 1}/${competitions.length}…`
+              : "Importovať všetko"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCollapsed(true)}
+            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            Hotovo
+          </button>
+        </div>
       </div>
+      {allSummary && !isPending && (
+        <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">{allSummary}</p>
+      )}
       <div className="mt-4 space-y-2">
         {competitions.map((c) => (
           <div key={c.id} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-100 px-3 py-2 dark:border-zinc-900">
