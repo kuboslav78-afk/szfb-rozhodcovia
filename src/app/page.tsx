@@ -479,6 +479,22 @@ export default async function Home(props: PageProps<"/">) {
               referees={allReferees}
               initialAdmins={allCategoryAdmins}
             />
+            <a
+              href="/nominations"
+              className="mb-10 flex items-center justify-between rounded-xl border border-zinc-200 px-5 py-4 transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+            >
+              <div>
+                <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
+                  Nominácie
+                </h2>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Import zápasov zo szfb.sk a priraďovanie rozhodcov (interné, KRO).
+                </p>
+              </div>
+              <span className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
+                Otvoriť →
+              </span>
+            </a>
           </>
         ) : adminView ? (
           <>
