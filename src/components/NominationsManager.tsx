@@ -309,6 +309,27 @@ function RefereeSlot({
           className={`h-5 w-5 shrink-0 rounded-full border-2 transition ${STATUS_CLASSES[localStatus]}`}
         />
       )}
+      {localRefereeId && (
+        <button
+          type="button"
+          title="Odstrániť nomináciu"
+          onClick={() => handlePick("")}
+          className="shrink-0 text-zinc-300 transition hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-400"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4"
+          >
+            <path d="M18 6 6 18M6 6l18 18" />
+          </svg>
+        </button>
+      )}
       {pickerOpen && (
         <RefereePickerModal
           dateStr={match.match_date}
