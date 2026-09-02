@@ -63,6 +63,38 @@ const STATUS_CLASSES: Record<NominationStatus, string> = {
 
 const STATUS_CYCLE: NominationStatus[] = ["draft", "sent", "confirmed", "rejected"];
 
+// Poradie súťaží v rámci toho istého hracieho dňa — presne podľa zadania KRO.
+// Ligy mimo tohto zoznamu (zatiaľ len regionálne) sa zoradia abecedne až za nimi.
+const LEAGUE_PRIORITY: Record<string, number> = {
+  MEX: 0,
+  ZEX: 1,
+  JEX: 2,
+  M1: 3,
+  Z1: 4,
+  "DO-ZA": 5,
+  "DO-VY": 5,
+  "SZY-U15": 6,
+};
+
+function leaguePriority(league: string) {
+  return LEAGUE_PRIORITY[league] ?? Number.MAX_SAFE_INTEGER;
+}
+
+function compareMatches(a: Match, b: Match) {
+  if (a.match_date !== b.match_date) return a.match_date < b.match_date ? -1 : 1;
+
+  const pa = leaguePriority(a.league);
+  const pb = leaguePriority(b.league);
+  if (pa !== pb) return pa - pb;
+  if (pa === Number.MAX_SAFE_INTEGER && a.league !== b.league) {
+    return a.league < b.league ? -1 : 1;
+  }
+
+  const na = a.match_number ?? Number.MAX_SAFE_INTEGER;
+  const nb = b.match_number ?? Number.MAX_SAFE_INTEGER;
+  return na - nb;
+}
+
 function formatDateLabel(dateStr: string) {
   const [year, month, day] = dateStr.split("-").map(Number);
   const date = new Date(year, month - 1, day);
@@ -72,18 +104,6 @@ function formatDateLabel(dateStr: string) {
 function refereeName(referees: Referee[], id: string | null) {
   if (!id) return null;
   return referees.find((r) => r.id === id)?.full_name ?? null;
-}
-
-function matchText(match: Match, referees: Referee[]) {
-  const lines = [
-    `${match.team_home} vs ${match.team_away}`,
-    `${formatDateLabel(match.match_date)}${match.match_time ? `, ${match.match_time}` : ""}`,
-    match.venue ? match.venue : "miesto zatiaľ neurčené",
-    `Liga: ${match.league}`,
-    match.match_number != null ? `Č.z.: ${match.match_number}` : null,
-    `Rozhodcovia: ${refereeName(referees, match.referee1_id) ?? "—"}, ${refereeName(referees, match.referee2_id) ?? "—"}`,
-  ].filter((line): line is string => line !== null);
-  return lines.join("\n");
 }
 
 function ImportPanel({ competitions }: { competitions: CompetitionConfig[] }) {
@@ -220,11 +240,11 @@ function RefereeSlot({
   });
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2">
       <button
         type="button"
         onClick={() => setPickerOpen(true)}
-        className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-left text-xs text-zinc-700 outline-none transition hover:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+        className="rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-left text-sm text-zinc-700 outline-none transition hover:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
       >
         {refereeName(referees, localRefereeId || null) ?? `— rozhodca ${slot} —`}
       </button>
@@ -257,24 +277,6 @@ function MatchRow({
   referees: Referee[];
   availability: AvailabilityRow[];
 }) {
-  const [copied, setCopied] = useState(false);
-  const [copyError, setCopyError] = useState(false);
-
-  async function handleCopy() {
-    const text = matchText(match, referees);
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setCopyError(false);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Kopírovanie do schránky môže prehliadač odmietnuť (chýbajúce
-      // oprávnenie, starší prehliadač) — zobraz text aspoň na ručné skopírovanie.
-      setCopyError(true);
-      window.prompt("Skopíruj text ručne (Ctrl/Cmd+C):", text);
-    }
-  }
-
   return (
     <tr className="border-t border-zinc-100 dark:border-zinc-900">
       <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-400">
@@ -299,19 +301,6 @@ function MatchRow({
           <RefereeSlot match={match} slot={2} referees={referees} availability={availability} />
         </div>
       </td>
-      <td className="px-2 py-2 text-center">
-        <button
-          type="button"
-          onClick={handleCopy}
-          className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
-            copyError
-              ? "border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
-              : "border-zinc-300 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          }`}
-        >
-          {copied ? "Skopírované" : copyError ? "Skopíruj ručne" : "Kopírovať"}
-        </button>
-      </td>
     </tr>
   );
 }
@@ -329,11 +318,13 @@ export function NominationsManager({ competitions, initialMatches, referees, ava
     [initialMatches],
   );
 
-  const filtered = initialMatches.filter(
-    (m) =>
-      (leagueFilter === "all" || m.league === leagueFilter) &&
-      (monthFilter === "all" || m.match_date.startsWith(monthFilter)),
-  );
+  const filtered = initialMatches
+    .filter(
+      (m) =>
+        (leagueFilter === "all" || m.league === leagueFilter) &&
+        (monthFilter === "all" || m.match_date.startsWith(monthFilter)),
+    )
+    .sort(compareMatches);
 
   return (
     <div>
@@ -376,7 +367,6 @@ export function NominationsManager({ competitions, initialMatches, referees, ava
               <th className="px-2 py-2 text-left text-xs font-semibold text-zinc-500">Zápas</th>
               <th className="px-2 py-2 text-center text-xs font-semibold text-zinc-500">Liga</th>
               <th className="px-2 py-2 text-left text-xs font-semibold text-zinc-500">Rozhodcovia</th>
-              <th className="px-2 py-2 text-center text-xs font-semibold text-zinc-500"></th>
             </tr>
           </thead>
           <tbody>
