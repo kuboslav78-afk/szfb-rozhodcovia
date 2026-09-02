@@ -28,6 +28,7 @@ import {
   type CancellationRequestItem,
 } from "@/components/CancellationRequests";
 import { getPendingNominationCount } from "@/lib/nominations";
+import { getEffectiveIsAdmin } from "@/lib/view-mode";
 import type { AvailabilityStatus } from "@/app/availability/actions";
 
 type DayEntry = {
@@ -51,7 +52,8 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
   const referee = await requireUser();
   const supabase = await createClient();
 
-  const isSuperAdmin = referee.role === "admin";
+  const realIsAdmin = referee.role === "admin";
+  const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
   const isViewer = referee.role === "viewer";
   const canSeeAllCategories = isSuperAdmin || isViewer;
 
@@ -333,9 +335,19 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
       <Sidebar
         current={isAdminSection ? "administracia" : "dostupnost"}
         refereeName={referee.full_name}
-        roleLabel={isSuperAdmin ? "Administrátor" : isViewer ? "Viewer" : null}
+        roleLabel={
+          realIsAdmin
+            ? isSuperAdmin
+              ? "Administrátor"
+              : "Administrátor · náhľad rozhodcu"
+            : isViewer
+              ? "Viewer"
+              : null
+        }
         isAdmin={isSuperAdmin}
         pendingNominations={pendingNominations}
+        canToggleView={realIsAdmin}
+        viewMode={isSuperAdmin ? "admin" : "referee"}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         {needsHomeRegionPrompt && <HomeRegionPrompt />}

@@ -2,10 +2,19 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, type ReactNode, type SVGProps } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition, type ReactNode, type SVGProps } from "react";
 import { SignOutButton } from "@/components/SignOutButton";
+import { setViewMode } from "@/app/view-mode/actions";
 
-export type NavKey = "prehlad" | "dostupnost" | "nominacie" | "vzdelavanie" | "testovanie" | "administracia";
+export type NavKey =
+  | "prehlad"
+  | "dostupnost"
+  | "nominacie"
+  | "vzdelavanie"
+  | "testovanie"
+  | "administracia"
+  | "kro";
 
 type IconProps = SVGProps<SVGSVGElement>;
 
@@ -65,6 +74,17 @@ function ShieldIcon(props: IconProps) {
   );
 }
 
+function UsersIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5" />
+      <path d="M16 4.5a3.5 3.5 0 0 1 0 7" />
+      <path d="M21.5 20c0-3-2-5.5-4.8-6.3" />
+    </svg>
+  );
+}
+
 function MenuIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -96,6 +116,10 @@ type Props = {
   roleLabel: string | null;
   isAdmin: boolean;
   pendingNominations: number;
+  /** Skutočná rola je admin — riadi, či sa vôbec zobrazí prepínač pohľadu. */
+  canToggleView?: boolean;
+  /** Aktuálny (UI) pohľad, relevantný len keď canToggleView je true. */
+  viewMode?: "admin" | "referee";
 };
 
 function Brand() {
@@ -173,6 +197,11 @@ function Nav({
         <>
           <div className="my-2 h-px bg-zinc-100 dark:bg-zinc-900" />
           <NavLink
+            item={{ key: "kro", href: "/kro", label: "KRO", icon: UsersIcon }}
+            active={current === "kro"}
+            onNavigate={onNavigate}
+          />
+          <NavLink
             item={{ key: "administracia", href: "/dostupnost?view=admin", label: "Administrácia", icon: ShieldIcon }}
             active={current === "administracia"}
             onNavigate={onNavigate}
@@ -180,6 +209,48 @@ function Nav({
         </>
       )}
     </nav>
+  );
+}
+
+function ViewModeToggle({ viewMode }: { viewMode: "admin" | "referee" }) {
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  function switchTo(mode: "admin" | "referee") {
+    if (mode === viewMode || isPending) return;
+    startTransition(async () => {
+      await setViewMode(mode);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="mx-4 mb-3 flex rounded-lg border border-zinc-200 p-0.5 text-xs font-bold tracking-wide uppercase dark:border-zinc-800">
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => switchTo("admin")}
+        className={`flex-1 rounded-md px-2 py-1.5 transition ${
+          viewMode === "admin"
+            ? "bg-brand-indigo text-white"
+            : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+        }`}
+      >
+        Admin
+      </button>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => switchTo("referee")}
+        className={`flex-1 rounded-md px-2 py-1.5 transition ${
+          viewMode === "referee"
+            ? "bg-brand-indigo text-white"
+            : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+        }`}
+      >
+        Rozhodca
+      </button>
+    </div>
   );
 }
 
@@ -204,7 +275,15 @@ function UserFooter({ refereeName, roleLabel }: { refereeName: string; roleLabel
   );
 }
 
-export function Sidebar({ current, refereeName, roleLabel, isAdmin, pendingNominations }: Props) {
+export function Sidebar({
+  current,
+  refereeName,
+  roleLabel,
+  isAdmin,
+  pendingNominations,
+  canToggleView,
+  viewMode,
+}: Props) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -259,6 +338,11 @@ export function Sidebar({ current, refereeName, roleLabel, isAdmin, pendingNomin
               </button>
             </div>
             <div className="h-[4px] bg-brand-red" />
+            {canToggleView && viewMode && (
+              <div className="pt-3">
+                <ViewModeToggle viewMode={viewMode} />
+              </div>
+            )}
             <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
               <Nav
                 current={current}
@@ -275,6 +359,11 @@ export function Sidebar({ current, refereeName, roleLabel, isAdmin, pendingNomin
       <aside className="sticky top-0 z-40 hidden h-screen w-64 shrink-0 flex-col border-r border-zinc-100 bg-white dark:border-zinc-900 dark:bg-zinc-950 lg:flex">
         <Brand />
         <div className="h-[4px] bg-brand-red" />
+        {canToggleView && viewMode && (
+          <div className="pt-3">
+            <ViewModeToggle viewMode={viewMode} />
+          </div>
+        )}
         <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
           <Nav current={current} isAdmin={isAdmin} pendingNominations={pendingNominations} />
         </div>

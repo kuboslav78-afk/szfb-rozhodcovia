@@ -5,11 +5,13 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageTitle } from "@/components/PageTitle";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { getPendingNominationCount } from "@/lib/nominations";
+import { getEffectiveIsAdmin } from "@/lib/view-mode";
 
 export default async function ProfilPage() {
   const referee = await requireUser();
   const supabase = await createClient();
-  const isSuperAdmin = referee.role === "admin";
+  const realIsAdmin = referee.role === "admin";
+  const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
 
   return (
@@ -17,9 +19,19 @@ export default async function ProfilPage() {
       <Sidebar
         current={null}
         refereeName={referee.full_name}
-        roleLabel={isSuperAdmin ? "Administrátor" : referee.role === "viewer" ? "Viewer" : null}
+        roleLabel={
+          realIsAdmin
+            ? isSuperAdmin
+              ? "Administrátor"
+              : "Administrátor · náhľad rozhodcu"
+            : referee.role === "viewer"
+              ? "Viewer"
+              : null
+        }
         isAdmin={isSuperAdmin}
         pendingNominations={pendingNominations}
+        canToggleView={realIsAdmin}
+        viewMode={isSuperAdmin ? "admin" : "referee"}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">

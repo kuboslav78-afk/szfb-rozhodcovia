@@ -7,6 +7,7 @@ import { COMPETITIONS } from "@/lib/szfb-scraper";
 import { NominationsManager } from "@/components/NominationsManager";
 import { MyNominations, type MyNomination } from "@/components/MyNominations";
 import { getPendingNominationCount } from "@/lib/nominations";
+import { getEffectiveIsAdmin } from "@/lib/view-mode";
 import { parseCategoryParam } from "@/lib/categories";
 
 function singleParam(value: string | string[] | undefined) {
@@ -19,7 +20,8 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
 
   const referee = await requireUser();
   const supabase = await createClient();
-  const isSuperAdmin = referee.role === "admin";
+  const realIsAdmin = referee.role === "admin";
+  const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
 
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
 
@@ -70,9 +72,13 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
         <Sidebar
           current="nominacie"
           refereeName={referee.full_name}
-          roleLabel={referee.role === "viewer" ? "Viewer" : null}
+          roleLabel={
+            realIsAdmin ? "Administrátor · náhľad rozhodcu" : referee.role === "viewer" ? "Viewer" : null
+          }
           isAdmin={false}
           pendingNominations={pendingNominations}
+          canToggleView={realIsAdmin}
+          viewMode="referee"
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-10">
@@ -124,6 +130,8 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
         roleLabel="Administrátor"
         isAdmin={isSuperAdmin}
         pendingNominations={pendingNominations}
+        canToggleView={realIsAdmin}
+        viewMode="admin"
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-10">
