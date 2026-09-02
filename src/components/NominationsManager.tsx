@@ -272,13 +272,21 @@ function MatchRow({
   match,
   referees,
   availability,
+  newDay,
 }: {
   match: Match;
   referees: Referee[];
   availability: AvailabilityRow[];
+  newDay: boolean;
 }) {
   return (
-    <tr className="border-t border-zinc-100 dark:border-zinc-900">
+    <tr
+      className={
+        newDay
+          ? "border-t-2 border-zinc-300 dark:border-zinc-700"
+          : "border-t border-zinc-100 dark:border-zinc-900"
+      }
+    >
       <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-400">
         {match.match_number ?? "—"}
       </td>
@@ -370,8 +378,14 @@ export function NominationsManager({ competitions, initialMatches, referees, ava
             </tr>
           </thead>
           <tbody>
-            {filtered.map((m) => (
-              <MatchRow key={m.id} match={m} referees={referees} availability={availability} />
+            {filtered.map((m, i) => (
+              <MatchRow
+                key={m.id}
+                match={m}
+                referees={referees}
+                availability={availability}
+                newDay={i === 0 || filtered[i - 1].match_date !== m.match_date}
+              />
             ))}
           </tbody>
         </table>
