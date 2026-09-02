@@ -1,479 +1,215 @@
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
-import {
-  monthGrid,
-  monthLabel,
-  monthParam,
-  parseMonthParam,
-  todayDateStr,
-  toDateStr,
-} from "@/lib/dates";
-import { CATEGORIES, parseCategoryParam, type Category } from "@/lib/categories";
-import type { LicenseLevel } from "@/lib/licenses";
-import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
-import { MonthNav } from "@/components/MonthNav";
-import { RefereeCalendar } from "@/components/RefereeCalendar";
-import { AdminOverview } from "@/components/AdminOverview";
-import { MatchDaysEditor } from "@/components/MatchDaysEditor";
 import { Sidebar } from "@/components/Sidebar";
 import { PageTitle } from "@/components/PageTitle";
-import { CategoryTabs } from "@/components/CategoryTabs";
-import { RegionSwitcher } from "@/components/RegionSwitcher";
-import { UnfilledReminder } from "@/components/UnfilledReminder";
-import { RefereeCategoriesManager } from "@/components/RefereeCategoriesManager";
-import { CategoryAdminsManager } from "@/components/CategoryAdminsManager";
-import { AddRefereeForm } from "@/components/AddRefereeForm";
-import {
-  CancellationRequests,
-  type CancellationRequestItem,
-} from "@/components/CancellationRequests";
+import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
 import { getPendingNominationCount } from "@/lib/nominations";
-import type { AvailabilityStatus } from "@/app/availability/actions";
+import { LICENSE_LABELS, isLicenseLevel } from "@/lib/licenses";
+import { todayDateStr } from "@/lib/dates";
+import type { Category } from "@/lib/categories";
 
-type DayEntry = {
-  status: AvailabilityStatus;
-  reason: string | null;
-  availableFrom: string | null;
-  availableTo: string | null;
-  cancelRequested: boolean;
-};
-
-function singleParam(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
+function formatDateLabel(dateStr: string) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString("sk-SK", { day: "numeric", month: "2-digit" });
 }
 
-export default async function Home(props: PageProps<"/">) {
-  const searchParams = await props.searchParams;
-  const monthKey = parseMonthParam(singleParam(searchParams.month));
-  const viewParamRaw = singleParam(searchParams.view);
-  const categoryParamRaw = singleParam(searchParams.category);
-
+export default async function HomePage() {
   const referee = await requireUser();
   const supabase = await createClient();
-
   const isSuperAdmin = referee.role === "admin";
   const isViewer = referee.role === "viewer";
-  const canSeeAllCategories = isSuperAdmin || isViewer;
+  const today = todayDateStr();
 
-  const [{ data: myCategoryRows }, { data: myAdminCategoryRows }] =
-    await Promise.all([
+  const [
+    { data: refereeRow },
+    { data: upcomingRows },
+    { data: confirmedPastRows },
+    { data: myCategoryRows },
+    pendingNominations,
+  ] = await Promise.all([
+      supabase.from("referees").select("license_level").eq("id", referee.id).maybeSingle(),
+      supabase
+        .from("matches")
+        .select(
+          "id, league, team_home, team_away, match_date, match_time, venue, referee1_id, referee1_status, referee2_id, referee2_status",
+        )
+        .or(
+          `and(referee1_id.eq.${referee.id},referee1_status.neq.draft),and(referee2_id.eq.${referee.id},referee2_status.neq.draft)`,
+        )
+        .gte("match_date", today)
+        .order("match_date")
+        .order("match_time")
+        .limit(3),
+      supabase
+        .from("matches")
+        .select("id")
+        .or(
+          `and(referee1_id.eq.${referee.id},referee1_status.eq.confirmed),and(referee2_id.eq.${referee.id},referee2_status.eq.confirmed)`,
+        )
+        .lt("match_date", today),
       supabase.from("referee_categories").select("category").eq("referee_id", referee.id),
-      canSeeAllCategories
-        ? Promise.resolve({ data: null })
-        : supabase.from("category_admins").select("category").eq("referee_id", referee.id),
+      getPendingNominationCount(supabase, referee.id),
     ]);
 
   const myCategories = (myCategoryRows ?? []).map((r) => r.category as Category);
-  const myAdminCategories: Category[] = canSeeAllCategories
-    ? [...CATEGORIES]
-    : (myAdminCategoryRows ?? []).map((r) => r.category as Category);
+  const needsHomeRegionPrompt = !isViewer && !referee.home_region && myCategories.length === 0;
 
-  const canSeeAdmin = myAdminCategories.length > 0;
-  const view: "prehlad" | "moje" | "admin" =
-    isSuperAdmin && viewParamRaw === "admin"
-      ? "admin"
-      : canSeeAdmin && !isViewer && viewParamRaw === "moje"
-        ? "moje"
-        : "prehlad";
-  const adminView = canSeeAdmin && view === "prehlad";
-  const isAdminSection = isSuperAdmin && view === "admin";
+  const licenseLevel = refereeRow?.license_level;
+  const licenseLabel = licenseLevel && isLicenseLevel(licenseLevel) ? LICENSE_LABELS[licenseLevel] : null;
 
-  const visibleCategories: Category[] = adminView ? myAdminCategories : myCategories;
+  const upcoming = (upcomingRows ?? []).map((m) => {
+    const isSlot1 = m.referee1_id === referee.id;
+    const status = isSlot1 ? m.referee1_status : m.referee2_status;
+    return {
+      id: m.id,
+      league: m.league,
+      teamHome: m.team_home,
+      teamAway: m.team_away,
+      matchDate: m.match_date,
+      matchTime: m.match_time,
+      venue: m.venue,
+      status,
+    };
+  });
 
-  const primaryCategory: Category = myCategories.includes("celostatny")
-    ? "celostatny"
-    : (referee.home_region ?? myCategories[0] ?? "celostatny");
-
-  const requestedCategory = parseCategoryParam(categoryParamRaw);
-  const category: Category = adminView
-    ? visibleCategories.includes(requestedCategory)
-      ? requestedCategory
-      : (visibleCategories[0] ?? "celostatny")
-    : myCategories.includes(requestedCategory)
-      ? requestedCategory
-      : primaryCategory;
-
-  const days = monthGrid(monthKey).filter((d): d is number => d !== null);
-  const firstDay = toDateStr(monthKey.year, monthKey.month, days[0]);
-  const lastDay = toDateStr(monthKey.year, monthKey.month, days[days.length - 1]);
-
-  const { data: matchDayRows } = await supabase
-    .from("match_days")
-    .select("match_date, leagues")
-    .eq("category", category)
-    .gte("match_date", firstDay)
-    .lte("match_date", lastDay);
-
-  const matchDays = (matchDayRows ?? []).map((row) => row.match_date as string);
-  const matchDayLeagues: Record<string, string[]> = Object.fromEntries(
-    (matchDayRows ?? []).map((row) => [
-      row.match_date as string,
-      (row.leagues as string[] | null) ?? [],
-    ]),
-  );
-
-  let refereeAvailability: Record<string, DayEntry> = {};
-  type RefereeRow = {
-    id: string;
-    full_name: string;
-    license_level: LicenseLevel | null;
-    home_region: Category | null;
-    role: "admin" | "referee" | "viewer";
-  };
-  let adminReferees: RefereeRow[] = [];
-  let adminCelostatnySet = new Set<string>();
-  let adminAvailability: Record<string, Record<string, DayEntry>> = {};
-  let cancellationRequests: CancellationRequestItem[] = [];
-  let allReferees: RefereeRow[] = [];
-  let allRefereeCategories: Record<string, Category[]> = {};
-  let allCategoryAdmins: Record<string, Category[]> = {};
-
-  if (canSeeAllCategories && (adminView || isAdminSection)) {
-    const [{ data: allRefs }, { data: allCatRows }, { data: allAdminRows }] =
-      await Promise.all([
-        supabase
-          .from("referees")
-          .select("id, full_name, license_level, home_region, role")
-          .eq("active", true)
-          .order("full_name"),
-        supabase.from("referee_categories").select("referee_id, category"),
-        supabase.from("category_admins").select("referee_id, category"),
-      ]);
-
-    allReferees = allRefs ?? [];
-
-    allRefereeCategories = {};
-    for (const row of allCatRows ?? []) {
-      const id = row.referee_id as string;
-      allRefereeCategories[id] ??= [];
-      allRefereeCategories[id].push(row.category as Category);
-    }
-
-    allCategoryAdmins = {};
-    for (const row of allAdminRows ?? []) {
-      const id = row.referee_id as string;
-      allCategoryAdmins[id] ??= [];
-      allCategoryAdmins[id].push(row.category as Category);
-    }
-  }
-
-  if (adminView) {
-    const availabilityQueries = [
-      supabase
-        .from("availability")
-        .select(
-          "referee_id, available_date, status, reason, available_from, available_to, cancel_requested",
-        )
-        .eq("category", category)
-        .gte("available_date", firstDay)
-        .lte("available_date", lastDay),
-      supabase
-        .from("availability")
-        .select(
-          "referee_id, available_date, status, reason, available_from, available_to, referees(full_name)",
-        )
-        .eq("category", category)
-        .eq("cancel_requested", true)
-        .order("cancel_requested_at"),
-    ] as const;
-
-    // "celoštátny" je trvalé, adminom udelené členstvo — zobrazuje sa vždy.
-    // Pre regióny sa natrvalo zobrazujú len domáci (podľa home_region); ostatní
-    // (napr. celoštátny rozhodca, ktorý si "ponúkol termín") sa zobrazia len
-    // v mesiacoch, kde si tam skutočne niečo vyplnili — nabudúce bez vyplnenia
-    // im tam meno už nesvieti.
-    const baseRefereeIdsQuery =
-      category === "celostatny"
-        ? supabase.from("referee_categories").select("referee_id").eq("category", category)
-        : supabase.from("referees").select("id").eq("home_region", category).eq("active", true);
-
-    const [{ data: baseRows }, { data: rows }, { data: pending }] = await Promise.all([
-      baseRefereeIdsQuery,
-      ...availabilityQueries,
-    ]);
-
-    const baseRefereeIds: string[] = (baseRows ?? []).map((r) =>
-      ("referee_id" in r ? r.referee_id : r.id) as string,
-    );
-    const filledRefereeIds = (rows ?? []).map((r) => r.referee_id as string);
-
-    const categoryRefereeIds = new Set([...baseRefereeIds, ...filledRefereeIds]);
-
-    if (canSeeAllCategories) {
-      adminReferees = allReferees.filter((r) => categoryRefereeIds.has(r.id));
-    } else if (categoryRefereeIds.size > 0) {
-      const { data: catReferees } = await supabase
-        .from("referees")
-        .select("id, full_name, license_level, home_region, role")
-        .in("id", Array.from(categoryRefereeIds))
-        .eq("active", true)
-        .order("full_name");
-      adminReferees = catReferees ?? [];
-    }
-
-    if (adminReferees.length > 0) {
-      const { data: celostatnyRows } = await supabase
-        .from("referee_categories")
-        .select("referee_id")
-        .eq("category", "celostatny")
-        .in(
-          "referee_id",
-          adminReferees.map((r) => r.id),
-        );
-      adminCelostatnySet = new Set(
-        (celostatnyRows ?? []).map((r) => r.referee_id as string),
-      );
-    }
-
-    adminAvailability = {};
-    for (const row of rows ?? []) {
-      adminAvailability[row.referee_id] ??= {};
-      adminAvailability[row.referee_id][row.available_date] = {
-        status: row.status as AvailabilityStatus,
-        reason: row.reason as string | null,
-        availableFrom: row.available_from as string | null,
-        availableTo: row.available_to as string | null,
-        cancelRequested: row.cancel_requested as boolean,
-      };
-    }
-
-    cancellationRequests = (pending ?? []).map((row) => {
-      const refereeRelation = row.referees as
-        | { full_name: string }
-        | { full_name: string }[]
-        | null;
-      const refereeName = Array.isArray(refereeRelation)
-        ? (refereeRelation[0]?.full_name ?? "?")
-        : (refereeRelation?.full_name ?? "?");
-
-      return {
-        refereeId: row.referee_id as string,
-        refereeName,
-        date: row.available_date as string,
-        category,
-        status: row.status as string,
-        reason: row.reason as string | null,
-        availableFrom: row.available_from as string | null,
-        availableTo: row.available_to as string | null,
-      };
-    });
-  } else if (myCategories.length > 0) {
-    const { data: rows } = await supabase
-      .from("availability")
-      .select(
-        "available_date, status, reason, available_from, available_to, cancel_requested",
-      )
-      .eq("referee_id", referee.id)
-      .eq("category", category)
-      .gte("available_date", firstDay)
-      .lte("available_date", lastDay);
-
-    refereeAvailability = Object.fromEntries(
-      (rows ?? []).map((row) => [
-        row.available_date,
-        {
-          status: row.status as AvailabilityStatus,
-          reason: row.reason as string | null,
-          availableFrom: row.available_from as string | null,
-          availableTo: row.available_to as string | null,
-          cancelRequested: row.cancel_requested as boolean,
-        },
-      ]),
-    );
-  }
-
-  let unfilledThisMonth: string[] = [];
-  let nextUnfilledMonth: { monthParam: string; label: string } | null = null;
-
-  if (!adminView && !isAdminSection && myCategories.includes(category)) {
-    unfilledThisMonth = matchDays.filter((d) => !refereeAvailability[d]);
-
-    const { data: futureMatchDayRows } = await supabase
-      .from("match_days")
-      .select("match_date")
-      .eq("category", category)
-      .gt("match_date", lastDay)
-      .order("match_date")
-      .limit(120);
-
-    const futureDates = (futureMatchDayRows ?? []).map(
-      (row) => row.match_date as string,
-    );
-
-    if (futureDates.length > 0) {
-      const { data: futureFilledRows } = await supabase
-        .from("availability")
-        .select("available_date")
-        .eq("referee_id", referee.id)
-        .eq("category", category)
-        .in("available_date", futureDates);
-
-      const futureFilledSet = new Set(
-        (futureFilledRows ?? []).map((row) => row.available_date as string),
-      );
-      const firstUnfilled = futureDates.find((d) => !futureFilledSet.has(d));
-
-      if (firstUnfilled) {
-        const [year, month] = firstUnfilled.split("-").map(Number);
-        nextUnfilledMonth = {
-          monthParam: monthParam({ year, month }),
-          label: monthLabel({ year, month }),
-        };
-      }
-    }
-  }
-
-  const needsHomeRegionPrompt =
-    !isViewer && !referee.home_region && myCategories.length === 0;
-
-  const pendingNominations = await getPendingNominationCount(supabase, referee.id);
+  const officiatedCount = confirmedPastRows?.length ?? 0;
 
   return (
     <div className="lg:flex">
+      {needsHomeRegionPrompt && <HomeRegionPrompt />}
       <Sidebar
-        current={isAdminSection ? "administracia" : "dostupnost"}
+        current="prehlad"
         refereeName={referee.full_name}
-        roleLabel={isSuperAdmin ? "Administrátor" : isViewer ? "Viewer" : null}
+        roleLabel={isSuperAdmin ? "Administrátor" : referee.role === "viewer" ? "Viewer" : null}
         isAdmin={isSuperAdmin}
         pendingNominations={pendingNominations}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        {needsHomeRegionPrompt && <HomeRegionPrompt />}
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
+          <PageTitle className="mb-8">Prehľad</PageTitle>
 
-        <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <PageTitle>
-              {isAdminSection
-                ? "Administrácia"
-                : adminView
-                  ? "Prehľad dostupnosti"
-                  : "Moja dostupnosť"}
-            </PageTitle>
-
-            {isAdminSection ? (
-              <a
-                href={`/?month=${monthParam(monthKey)}&category=${category}`}
-                className="ml-2 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-              >
-                ← Späť na kalendár
-              </a>
-            ) : (
-              canSeeAdmin && (
-                <div className="ml-2 flex flex-wrap rounded-lg border border-zinc-200 p-0.5 text-sm dark:border-zinc-800">
-                  {canSeeAdmin && (
-                    <a
-                      href={`/?month=${monthParam(monthKey)}&category=${category}`}
-                      className={`rounded-md px-3 py-1 font-medium transition ${
-                        view === "prehlad"
-                          ? "bg-brand-indigo text-white"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                      }`}
-                    >
-                      Prehľad
-                    </a>
-                  )}
-                  {!isViewer && (
-                    <a
-                      href={`/?month=${monthParam(monthKey)}&view=moje`}
-                      className={`rounded-md px-3 py-1 font-medium transition ${
-                        view === "moje"
-                          ? "bg-brand-indigo text-white"
-                          : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                      }`}
-                    >
-                      Moja dostupnosť
-                    </a>
-                  )}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr] lg:items-start">
+            {/* LEFT COLUMN */}
+            <div className="flex flex-col gap-6">
+              {/* LICENCE CARD */}
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+                <div className="flex items-center gap-5">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-zinc-50 dark:bg-zinc-900">
+                    <span className="font-headline text-2xl text-brand-indigo">{licenseLevel ?? "—"}</span>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-zinc-800 dark:text-zinc-100">
+                      {licenseLabel ? `Licencia ${licenseLevel} · ${licenseLabel}` : "Licencia zatiaľ nepridelená"}
+                    </div>
+                    <div className="mt-1 text-sm text-zinc-400">
+                      Región: {referee.home_region ?? "—"}
+                    </div>
+                  </div>
                 </div>
-              )
-            )}
+                <a
+                  href="/profil"
+                  className="shrink-0 rounded-lg bg-brand-indigo px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-indigo-dark"
+                >
+                  Zobraziť profil
+                </a>
+              </div>
+
+              {/* UPCOMING NOMINATIONS */}
+              <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="font-semibold text-zinc-800 dark:text-zinc-100">Najbližšie nominácie</div>
+                  <a href="/nominations" className="text-sm text-brand-indigo hover:underline">
+                    Zobraziť všetky →
+                  </a>
+                </div>
+
+                {upcoming.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-zinc-400">
+                    Zatiaľ nemáš žiadne odoslané nominácie.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-px bg-zinc-100 dark:bg-zinc-900">
+                    {upcoming.map((m) => (
+                      <div
+                        key={m.id}
+                        className="flex items-center gap-5 bg-white px-1 py-4 dark:bg-zinc-950"
+                      >
+                        <div className="w-14 shrink-0 text-center">
+                          <div className="font-headline text-lg text-zinc-800 dark:text-zinc-100">
+                            {formatDateLabel(m.matchDate)}
+                          </div>
+                          {m.matchTime && <div className="text-[11px] text-zinc-400">{m.matchTime.slice(0, 5)}</div>}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                            {m.teamHome} – {m.teamAway}
+                          </div>
+                          <div className="truncate text-xs text-zinc-400">
+                            {m.league} · {m.venue ?? "miesto zatiaľ neurčené"}
+                          </div>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase ${
+                            m.status === "confirmed"
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                          }`}
+                        >
+                          {m.status === "confirmed" ? "Potvrdené" : "Čaká na teba"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* VZDELAVANIE PLACEHOLDER */}
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-dashed border-zinc-200 p-6 dark:border-zinc-800">
+                <div>
+                  <div className="font-semibold text-zinc-800 dark:text-zinc-100">Vzdelávanie a e-learning</div>
+                  <div className="mt-1 text-sm text-zinc-400">Modul sa pripravuje.</div>
+                </div>
+                <a
+                  href="/vzdelavanie"
+                  className="shrink-0 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                >
+                  Zobraziť
+                </a>
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN */}
+            <div className="flex flex-col gap-6">
+              <div className="rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
+                <div className="mb-4 text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+                  Táto sezóna
+                </div>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm text-zinc-500">Odpískané zápasy</span>
+                    <span className="font-headline text-xl text-zinc-800 dark:text-zinc-100">{officiatedCount}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm text-zinc-500">Priemerné hodnotenie</span>
+                    <span className="text-sm text-zinc-300 italic dark:text-zinc-600">čoskoro</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-dashed border-zinc-200 p-5 dark:border-zinc-800">
+                <div className="mb-3 text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+                  Novinky KRO
+                </div>
+                <p className="text-sm text-zinc-400">Modul noviniek sa pripravuje.</p>
+              </div>
+
+              <div className="rounded-xl border border-dashed border-zinc-200 p-5 dark:border-zinc-800">
+                <div className="mb-3 text-xs font-semibold tracking-wide text-zinc-400 uppercase">Odmeny</div>
+                <p className="text-sm text-zinc-400">Modul vyúčtovania sa pripravuje.</p>
+              </div>
+            </div>
           </div>
-
-          {!isAdminSection && (
-            <MonthNav
-              monthKey={monthKey}
-              view={canSeeAdmin ? view : undefined}
-              category={category}
-            />
-          )}
-        </div>
-
-        {adminView && (
-          <CategoryTabs
-            categories={visibleCategories}
-            active={category}
-            monthKey={monthKey}
-            view={canSeeAdmin ? view : undefined}
-          />
-        )}
-
-        {isAdminSection ? (
-          <>
-            <AddRefereeForm />
-            <RefereeCategoriesManager
-              referees={allReferees}
-              initialCategories={allRefereeCategories}
-            />
-            <CategoryAdminsManager
-              referees={allReferees}
-              initialAdmins={allCategoryAdmins}
-            />
-          </>
-        ) : adminView ? (
-          <>
-            {!isViewer && <CancellationRequests items={cancellationRequests} />}
-            {!isViewer && (
-              <MatchDaysEditor
-                key={`${monthParam(monthKey)}-${category}`}
-                monthKey={monthKey}
-                category={category}
-                initialMatchDays={matchDays}
-                initialLeagues={matchDayLeagues}
-              />
-            )}
-            <AdminOverview
-              monthKey={monthKey}
-              category={category}
-              referees={adminReferees.map((r) => ({
-                ...r,
-                is_celostatny: adminCelostatnySet.has(r.id),
-              }))}
-              matchDays={matchDays}
-              availability={adminAvailability}
-            />
-          </>
-        ) : myCategories.length === 0 ? (
-          <div>
-            <p className="mb-4 text-sm text-zinc-500">
-              Zatiaľ nemáš vybraný žiadny región — vyber si ho nižšie, aby si
-              videl/a hracie dni.
-            </p>
-            <RegionSwitcher monthParam={monthParam(monthKey)} />
-          </div>
-        ) : (
-          <>
-            <RegionSwitcher
-              activeCategory={category}
-              primaryCategory={primaryCategory}
-              monthParam={monthParam(monthKey)}
-            />
-            <UnfilledReminder
-              dates={unfilledThisMonth}
-              category={category}
-              nextMonth={nextUnfilledMonth}
-            />
-            <RefereeCalendar
-              key={`${monthParam(monthKey)}-${view}-${category}`}
-              monthKey={monthKey}
-              category={category}
-              matchDays={matchDays}
-              matchDayLeagues={matchDayLeagues}
-              initialAvailability={refereeAvailability}
-              todayDateStr={todayDateStr()}
-            />
-          </>
-        )}
         </main>
       </div>
     </div>

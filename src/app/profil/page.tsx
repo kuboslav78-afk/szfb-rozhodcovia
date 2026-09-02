@@ -24,7 +24,7 @@ export default async function ProfilPage() {
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">
           <Link
-            href="/"
+            href="/dostupnost"
             className="mb-6 inline-block text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
           >
             ← Späť na kalendár

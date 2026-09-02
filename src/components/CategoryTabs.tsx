@@ -21,7 +21,7 @@ export function CategoryTabs({ categories, active, monthKey, view }: Props) {
       {categories.map((category) => (
         <Link
           key={category}
-          href={`/?month=${monthParam(monthKey)}${viewQuery}&category=${category}`}
+          href={`/dostupnost?month=${monthParam(monthKey)}${viewQuery}&category=${category}`}
           className={`rounded-md px-3 py-1.5 font-medium transition ${
             category === active
               ? "bg-brand-indigo text-white"

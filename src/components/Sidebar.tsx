@@ -5,9 +5,20 @@ import Link from "next/link";
 import { useState, type ReactNode, type SVGProps } from "react";
 import { SignOutButton } from "@/components/SignOutButton";
 
-export type NavKey = "dostupnost" | "nominacie" | "vzdelavanie" | "testovanie" | "administracia";
+export type NavKey = "prehlad" | "dostupnost" | "nominacie" | "vzdelavanie" | "testovanie" | "administracia";
 
 type IconProps = SVGProps<SVGSVGElement>;
+
+function GridIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="3" y="3" width="8" height="8" rx="1.5" />
+      <rect x="13" y="3" width="8" height="8" rx="1.5" />
+      <rect x="3" y="13" width="8" height="8" rx="1.5" />
+      <rect x="13" y="13" width="8" height="8" rx="1.5" />
+    </svg>
+  );
+}
 
 function CalendarIcon(props: IconProps) {
   return (
@@ -146,7 +157,8 @@ function Nav({
   onNavigate?: () => void;
 }) {
   const items: NavItem[] = [
-    { key: "dostupnost", href: "/", label: "Dostupnosť", icon: CalendarIcon },
+    { key: "prehlad", href: "/", label: "Prehľad", icon: GridIcon },
+    { key: "dostupnost", href: "/dostupnost", label: "Dostupnosť", icon: CalendarIcon },
     { key: "nominacie", href: "/nominations", label: "Nominácie", icon: ClipboardIcon, badge: pendingNominations },
     { key: "vzdelavanie", href: "/vzdelavanie", label: "Vzdelávanie", icon: BookIcon, soon: true },
     { key: "testovanie", href: "/testovanie", label: "Testovanie", icon: ChecklistIcon, soon: true },
@@ -161,7 +173,7 @@ function Nav({
         <>
           <div className="my-2 h-px bg-zinc-100 dark:bg-zinc-900" />
           <NavLink
-            item={{ key: "administracia", href: "/?view=admin", label: "Administrácia", icon: ShieldIcon }}
+            item={{ key: "administracia", href: "/dostupnost?view=admin", label: "Administrácia", icon: ShieldIcon }}
             active={current === "administracia"}
             onNavigate={onNavigate}
           />

@@ -13,7 +13,7 @@ export function MonthNav({ monthKey, view, category }: Props) {
   return (
     <div className="flex items-center gap-3">
       <Link
-        href={`/?month=${prev}${viewQuery}${categoryQuery}`}
+        href={`/dostupnost?month=${prev}${viewQuery}${categoryQuery}`}
         className="rounded-lg border border-zinc-300 px-2.5 py-1 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
       >
         ←
@@ -22,7 +22,7 @@ export function MonthNav({ monthKey, view, category }: Props) {
         {monthLabel(monthKey)}
       </span>
       <Link
-        href={`/?month=${next}${viewQuery}${categoryQuery}`}
+        href={`/dostupnost?month=${next}${viewQuery}${categoryQuery}`}
         className="rounded-lg border border-zinc-300 px-2.5 py-1 text-sm text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
       >
         →

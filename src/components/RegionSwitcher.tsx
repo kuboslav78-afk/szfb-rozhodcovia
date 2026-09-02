@@ -28,7 +28,7 @@ export function RegionSwitcher({ activeCategory, primaryCategory, monthParam }: 
       <div className="mb-6 flex flex-wrap items-center gap-2">
         {showPrimaryLink && (
           <a
-            href={`/?month=${monthParam}&view=moje&category=${primaryCategory}`}
+            href={`/dostupnost?month=${monthParam}&view=moje&category=${primaryCategory}`}
             className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             ← {CATEGORY_LABELS[primaryCategory]}
@@ -48,7 +48,7 @@ export function RegionSwitcher({ activeCategory, primaryCategory, monthParam }: 
   function handlePick(region: Region) {
     startTransition(async () => {
       await setMyRegion(region, true);
-      router.push(`/?month=${monthParam}&view=moje&category=${region}`);
+      router.push(`/dostupnost?month=${monthParam}&view=moje&category=${region}`);
       setOpen(false);
     });
   }
@@ -70,7 +70,7 @@ export function RegionSwitcher({ activeCategory, primaryCategory, monthParam }: 
       <div className="mt-3 flex flex-wrap gap-2">
         {showPrimaryLink && (
           <a
-            href={`/?month=${monthParam}&view=moje&category=${primaryCategory}`}
+            href={`/dostupnost?month=${monthParam}&view=moje&category=${primaryCategory}`}
             className="rounded-full border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:border-brand-indigo hover:bg-brand-indigo/10 hover:text-brand-indigo dark:border-zinc-700 dark:text-zinc-300 dark:hover:text-white"
           >
             ← {CATEGORY_LABELS[primaryCategory]}

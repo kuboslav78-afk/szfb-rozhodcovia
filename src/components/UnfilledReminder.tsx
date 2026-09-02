@@ -42,7 +42,7 @@ export function UnfilledReminder({
         >
           Venuj pozornosť aj termínom v mesiaci{" "}
           <a
-            href={`/?month=${nextMonth.monthParam}&view=moje&category=${category}`}
+            href={`/dostupnost?month=${nextMonth.monthParam}&view=moje&category=${category}`}
             className="font-semibold underline hover:no-underline"
           >
             {nextMonth.label}
