@@ -7,14 +7,27 @@ import {
   setMatchRefereeStatus,
   type NominationStatus,
 } from "@/app/nominations/actions";
+import type { AvailabilityStatus } from "@/app/availability/actions";
 import type { CompetitionConfig } from "@/lib/szfb-scraper";
+import type { LicenseLevel } from "@/lib/licenses";
+import { RefereePickerModal, type PickerReferee } from "@/components/RefereePickerModal";
 
-type Referee = { id: string; full_name: string };
+type Referee = { id: string; full_name: string; license_level: LicenseLevel | null };
+
+type AvailabilityRow = {
+  referee_id: string;
+  available_date: string;
+  status: AvailabilityStatus;
+  reason: string | null;
+  available_from: string | null;
+  available_to: string | null;
+};
 
 type Match = {
   id: string;
   category: string;
   league: string;
+  match_number: number | null;
   round: string | null;
   team_home: string;
   team_away: string;
@@ -31,6 +44,7 @@ type Props = {
   competitions: CompetitionConfig[];
   initialMatches: Match[];
   referees: Referee[];
+  availability: AvailabilityRow[];
 };
 
 const STATUS_LABELS: Record<NominationStatus, string> = {
@@ -66,8 +80,9 @@ function matchText(match: Match, referees: Referee[]) {
     `${formatDateLabel(match.match_date)}${match.match_time ? `, ${match.match_time}` : ""}`,
     match.venue ? match.venue : "miesto zatiaľ neurčené",
     `Liga: ${match.league}`,
+    match.match_number != null ? `Č.z.: ${match.match_number}` : null,
     `Rozhodcovia: ${refereeName(referees, match.referee1_id) ?? "—"}, ${refereeName(referees, match.referee2_id) ?? "—"}`,
-  ];
+  ].filter((line): line is string => line !== null);
   return lines.join("\n");
 }
 
@@ -145,20 +160,24 @@ function RefereeSlot({
   match,
   slot,
   referees,
+  availability,
 }: {
   match: Match;
   slot: 1 | 2;
   referees: Referee[];
+  availability: AvailabilityRow[];
 }) {
   const [, startTransition] = useTransition();
+  const [pickerOpen, setPickerOpen] = useState(false);
   const refereeId = slot === 1 ? match.referee1_id : match.referee2_id;
   const status = slot === 1 ? match.referee1_status : match.referee2_status;
   const [localRefereeId, setLocalRefereeId] = useState(refereeId ?? "");
   const [localStatus, setLocalStatus] = useState(status);
 
-  function handleRefereeChange(next: string) {
+  function handlePick(next: string) {
     setLocalRefereeId(next);
     setLocalStatus("draft");
+    setPickerOpen(false);
     startTransition(async () => {
       await setMatchReferee(match.id, slot, next || null);
     });
@@ -173,20 +192,34 @@ function RefereeSlot({
     });
   }
 
+  const pickerReferees: PickerReferee[] = referees.map((r) => {
+    const row = availability.find(
+      (a) => a.referee_id === r.id && a.available_date === match.match_date,
+    );
+    return {
+      id: r.id,
+      name: r.full_name,
+      license: r.license_level,
+      entry: row
+        ? {
+            status: row.status,
+            reason: row.reason,
+            availableFrom: row.available_from,
+            availableTo: row.available_to,
+          }
+        : undefined,
+    };
+  });
+
   return (
     <div className="flex items-center gap-1.5">
-      <select
-        value={localRefereeId}
-        onChange={(e) => handleRefereeChange(e.target.value)}
-        className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-xs text-zinc-700 outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+      <button
+        type="button"
+        onClick={() => setPickerOpen(true)}
+        className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-left text-xs text-zinc-700 outline-none transition hover:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
       >
-        <option value="">— rozhodca {slot} —</option>
-        {referees.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.full_name}
-          </option>
-        ))}
-      </select>
+        {refereeName(referees, localRefereeId || null) ?? `— rozhodca ${slot} —`}
+      </button>
       {localRefereeId && (
         <button
           type="button"
@@ -195,11 +228,27 @@ function RefereeSlot({
           className={`h-5 w-5 shrink-0 rounded-full border-2 transition ${STATUS_CLASSES[localStatus]}`}
         />
       )}
+      {pickerOpen && (
+        <RefereePickerModal
+          dateStr={match.match_date}
+          referees={pickerReferees}
+          onPick={handlePick}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
-function MatchRow({ match, referees }: { match: Match; referees: Referee[] }) {
+function MatchRow({
+  match,
+  referees,
+  availability,
+}: {
+  match: Match;
+  referees: Referee[];
+  availability: AvailabilityRow[];
+}) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
 
@@ -220,6 +269,9 @@ function MatchRow({ match, referees }: { match: Match; referees: Referee[] }) {
 
   return (
     <tr className="border-t border-zinc-100 dark:border-zinc-900">
+      <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-400">
+        {match.match_number ?? "—"}
+      </td>
       <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-500">
         {formatDateLabel(match.match_date)}
         {match.match_time && <span className="block">{match.match_time}</span>}
@@ -235,8 +287,8 @@ function MatchRow({ match, referees }: { match: Match; referees: Referee[] }) {
       </td>
       <td className="px-2 py-2">
         <div className="flex flex-col gap-1.5">
-          <RefereeSlot match={match} slot={1} referees={referees} />
-          <RefereeSlot match={match} slot={2} referees={referees} />
+          <RefereeSlot match={match} slot={1} referees={referees} availability={availability} />
+          <RefereeSlot match={match} slot={2} referees={referees} availability={availability} />
         </div>
       </td>
       <td className="px-2 py-2 text-center">
@@ -256,7 +308,7 @@ function MatchRow({ match, referees }: { match: Match; referees: Referee[] }) {
   );
 }
 
-export function NominationsManager({ competitions, initialMatches, referees }: Props) {
+export function NominationsManager({ competitions, initialMatches, referees, availability }: Props) {
   const [leagueFilter, setLeagueFilter] = useState<string>("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
 
@@ -311,6 +363,7 @@ export function NominationsManager({ competitions, initialMatches, referees }: P
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="bg-zinc-50 dark:bg-zinc-900">
+              <th className="px-2 py-2 text-left text-xs font-semibold text-zinc-500">Č.z.</th>
               <th className="px-2 py-2 text-left text-xs font-semibold text-zinc-500">Dátum</th>
               <th className="px-2 py-2 text-left text-xs font-semibold text-zinc-500">Zápas</th>
               <th className="px-2 py-2 text-center text-xs font-semibold text-zinc-500">Liga</th>
@@ -320,7 +373,7 @@ export function NominationsManager({ competitions, initialMatches, referees }: P
           </thead>
           <tbody>
             {filtered.map((m) => (
-              <MatchRow key={m.id} match={m} referees={referees} />
+              <MatchRow key={m.id} match={m} referees={referees} availability={availability} />
             ))}
           </tbody>
         </table>

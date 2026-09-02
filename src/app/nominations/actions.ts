@@ -53,6 +53,7 @@ export async function importCompetition(competitionId: string) {
       league: competition.league,
       external_competition_id: competition.id,
       external_match_id: match.externalMatchId,
+      match_number: match.matchNumber,
       round: match.round,
       team_home: match.teamHome,
       team_away: match.teamAway,

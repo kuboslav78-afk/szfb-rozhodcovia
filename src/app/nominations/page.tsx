@@ -25,14 +25,23 @@ export default async function NominationsPage() {
 
   const celostatnyIds = (celostatnyRefRows ?? []).map((r) => r.referee_id as string);
 
-  const { data: referees } = celostatnyIds.length
-    ? await supabase
-        .from("referees")
-        .select("id, full_name")
-        .in("id", celostatnyIds)
-        .eq("active", true)
-        .order("full_name")
-    : { data: [] };
+  const [{ data: referees }, { data: availabilityRows }] = await Promise.all([
+    celostatnyIds.length
+      ? supabase
+          .from("referees")
+          .select("id, full_name, license_level")
+          .in("id", celostatnyIds)
+          .eq("active", true)
+          .order("full_name")
+      : Promise.resolve({ data: [] }),
+    celostatnyIds.length
+      ? supabase
+          .from("availability")
+          .select("referee_id, available_date, status, reason, available_from, available_to")
+          .eq("category", "celostatny")
+          .in("referee_id", celostatnyIds)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   return (
     <>
@@ -54,6 +63,7 @@ export default async function NominationsPage() {
           competitions={COMPETITIONS}
           initialMatches={matches ?? []}
           referees={referees ?? []}
+          availability={availabilityRows ?? []}
         />
       </main>
     </>

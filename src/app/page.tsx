@@ -368,6 +368,36 @@ export default async function Home(props: PageProps<"/">) {
                 </svg>
               </a>
             )}
+            {isSuperAdmin && (
+              <a
+                href="/nominations"
+                className="hidden rounded-lg border border-white/30 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white/10 sm:block"
+              >
+                Nominácie
+              </a>
+            )}
+            {isSuperAdmin && (
+              <a
+                href="/nominations"
+                aria-label="Nominácie"
+                title="Nominácie"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/30 text-white transition hover:bg-white/10 sm:hidden"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                >
+                  <path d="M9 11l3 3L22 4" />
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                </svg>
+              </a>
+            )}
             <a
               href="/profil"
               className="hidden text-sm font-medium text-white hover:underline sm:block"
@@ -479,22 +509,6 @@ export default async function Home(props: PageProps<"/">) {
               referees={allReferees}
               initialAdmins={allCategoryAdmins}
             />
-            <a
-              href="/nominations"
-              className="mb-10 flex items-center justify-between rounded-xl border border-zinc-200 px-5 py-4 transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-            >
-              <div>
-                <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
-                  Nominácie
-                </h2>
-                <p className="mt-1 text-xs text-zinc-500">
-                  Import zápasov zo szfb.sk a priraďovanie rozhodcov (interné, KRO).
-                </p>
-              </div>
-              <span className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
-                Otvoriť →
-              </span>
-            </a>
           </>
         ) : adminView ? (
           <>

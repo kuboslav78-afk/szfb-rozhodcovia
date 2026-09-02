@@ -22,6 +22,7 @@ export const COMPETITIONS: CompetitionConfig[] = [
 
 export type ScrapedMatch = {
   externalMatchId: string;
+  matchNumber: number | null; // oficiálne "Č.z." zo szfb.sk, súvislé naprieč sezónou
   round: string | null;
   teamHome: string;
   teamAway: string;
@@ -78,6 +79,9 @@ export async function scrapeCompetition(
 
     if (!teamHome || !teamAway) return;
 
+    const matchNumberText = $el.find("td.hidden-xs").first().text().trim();
+    const matchNumber = /^\d+$/.test(matchNumberText) ? Number(matchNumberText) : null;
+
     const dateText = $el
       .find(".hidden-xs.hidden-lg.hover-hide-sm-down")
       .first()
@@ -106,6 +110,7 @@ export async function scrapeCompetition(
 
     matches.push({
       externalMatchId,
+      matchNumber,
       round: currentRound,
       teamHome,
       teamAway,
