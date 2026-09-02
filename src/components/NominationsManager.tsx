@@ -102,6 +102,14 @@ function ImportPanel({ competitions }: { competitions: CompetitionConfig[] }) {
     });
   }
 
+  if (competitions.length === 0) {
+    return (
+      <div className="mb-6 rounded-xl border border-dashed border-zinc-200 px-5 py-4 text-sm text-zinc-500 dark:border-zinc-800">
+        Pre tento región zatiaľ nie sú nastavené žiadne súťaže na import zo szfb.sk.
+      </div>
+    );
+  }
+
   if (collapsed) {
     return (
       <div className="mb-6 flex items-center justify-between rounded-xl border border-zinc-200 px-5 py-4 dark:border-zinc-800">
@@ -379,7 +387,9 @@ export function NominationsManager({ competitions, initialMatches, referees, ava
         </table>
         {filtered.length === 0 && (
           <p className="p-6 text-center text-sm text-zinc-400">
-            Žiadne zápasy — importuj súťaž vyššie.
+            {competitions.length === 0
+              ? "Žiadne zápasy — pre tento región zatiaľ nie sú nastavené súťaže na import."
+              : "Žiadne zápasy — importuj súťaž vyššie."}
           </p>
         )}
       </div>
