@@ -4,6 +4,7 @@ import { useState } from "react";
 import * as XLSX from "xlsx";
 import { CATEGORY_LABELS, type Category } from "@/lib/categories";
 import type { LicenseLevel } from "@/lib/licenses";
+import { PROFILE_FIELDS, filledProfileFieldCount } from "@/lib/profile-completeness";
 
 export type RefereeDataRow = {
   id: string;
@@ -28,18 +29,6 @@ type Props = {
   categories: Record<string, Category[]>;
 };
 
-/** Údaje, ktoré si rozhodca vypĺňa sám — podľa nich sa počíta stĺpec "Vyplnené". */
-const SELF_FILLED_FIELDS = [
-  "phone",
-  "address",
-  "date_of_birth",
-  "birth_number",
-  "bank_account",
-  "jersey_size",
-  "shorts_size",
-  "socks_size",
-] as const;
-
 function normalize(text: string) {
   return text
     .normalize("NFD")
@@ -56,7 +45,7 @@ function formatDate(value: string | null) {
 }
 
 function filledCount(referee: RefereeDataRow) {
-  return SELF_FILLED_FIELDS.filter((field) => Boolean(referee[field])).length;
+  return filledProfileFieldCount(referee);
 }
 
 /** Prázdna hodnota nech je v tabuľke jasne odlíšená od vyplnenej. */
@@ -85,7 +74,7 @@ function exportRow(referee: RefereeDataRow, refereeCategories: Category[]) {
       ? referee.criminal_record_uploaded_at.slice(0, 10)
       : "",
     Fotka: referee.photo_path ? "áno" : "",
-    "Vyplnené": `${filledCount(referee)}/${SELF_FILLED_FIELDS.length}`,
+    "Vyplnené": `${filledCount(referee)}/${PROFILE_FIELDS.length}`,
   };
 }
 
@@ -109,7 +98,7 @@ export function RefereeDataTable({ referees, categories }: Props) {
 
   const query = normalize(search);
   const visible = referees.filter((referee) => {
-    if (onlyIncomplete && filledCount(referee) === SELF_FILLED_FIELDS.length) return false;
+    if (onlyIncomplete && filledCount(referee) === PROFILE_FIELDS.length) return false;
     if (!query) return true;
     return (
       normalize(referee.full_name).includes(query) ||
@@ -223,7 +212,7 @@ export function RefereeDataTable({ referees, categories }: Props) {
           <tbody>
             {visible.map((referee) => {
               const filled = filledCount(referee);
-              const complete = filled === SELF_FILLED_FIELDS.length;
+              const complete = filled === PROFILE_FIELDS.length;
               const sizes = [referee.jersey_size, referee.shorts_size, referee.socks_size];
 
               return (
@@ -244,7 +233,7 @@ export function RefereeDataTable({ referees, categories }: Props) {
                             : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
                       }`}
                     >
-                      {filled}/{SELF_FILLED_FIELDS.length}
+                      {filled}/{PROFILE_FIELDS.length}
                     </span>
                   </td>
                   <td className="px-2 py-2 text-zinc-600 dark:text-zinc-300">

@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/Sidebar";
 import { PageTitle } from "@/components/PageTitle";
 import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
+import { ProfileCompletionPrompt } from "@/components/ProfileCompletionPrompt";
+import { missingProfileFields } from "@/lib/profile-completeness";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
 import { LICENSE_LABELS, isLicenseLevel } from "@/lib/licenses";
@@ -238,7 +240,13 @@ export default async function HomePage(props: PageProps<"/">) {
 
   const [{ data: refereeRow }, { data: upcomingRows }, { data: confirmedPastRows }, { data: myCategoryRows }] =
     await Promise.all([
-      supabase.from("referees").select("license_level").eq("id", referee.id).maybeSingle(),
+      supabase
+        .from("referees")
+        .select(
+          "license_level, phone, address, date_of_birth, birth_number, bank_account, jersey_size, shorts_size, socks_size, criminal_record_uploaded_at",
+        )
+        .eq("id", referee.id)
+        .maybeSingle(),
       supabase
         .from("matches")
         .select(
@@ -269,6 +277,10 @@ export default async function HomePage(props: PageProps<"/">) {
 
   const licenseLevel = refereeRow?.license_level;
   const licenseLabel = licenseLevel && isLicenseLevel(licenseLevel) ? LICENSE_LABELS[licenseLevel] : null;
+
+  // Viewer si profil nevypĺňa (RLS mu zápis aj tak neumožní), takže ho nenaháňame.
+  const missingFields = isViewer ? [] : missingProfileFields(refereeRow ?? {});
+  const missingCriminalRecord = !isViewer && !refereeRow?.criminal_record_uploaded_at;
 
   const upcoming = (upcomingRows ?? []).map((m) => {
     const isSlot1 = m.referee1_id === referee.id;
@@ -311,6 +323,11 @@ export default async function HomePage(props: PageProps<"/">) {
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
           <PageTitle className="mb-8">Prehľad</PageTitle>
+
+          <ProfileCompletionPrompt
+            missingFields={missingFields}
+            missingCriminalRecord={missingCriminalRecord}
+          />
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr] lg:items-start">
             {/* LEFT COLUMN */}
