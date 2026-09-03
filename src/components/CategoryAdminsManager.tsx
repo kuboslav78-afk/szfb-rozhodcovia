@@ -71,13 +71,62 @@ function RoleCell({ referee }: { referee: Referee }) {
   );
 }
 
+function normalize(text: string) {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export function CategoryAdminsManager({ referees, initialAccess }: Props) {
   const [collapsed, setCollapsed] = useState(true);
   const [access, setAccess] = useState(() => new Map(Object.entries(initialAccess)));
   const [isPending, startTransition] = useTransition();
+  const [search, setSearch] = useState("");
+
+  // V tabuľke sú len súčasní administrátori — rozhodcov sú stovky a vypisovať ich
+  // všetkých je neprehľadné. Zoznam sa počíta raz pri načítaní, takže nikto
+  // nezmizne spod ruky, keď mu práve odoberáš poslednú kategóriu.
+  const [visibleIds, setVisibleIds] = useState<Set<string>>(() => {
+    const ids = new Set<string>();
+    for (const referee of referees) {
+      if (referee.role !== "referee") ids.add(referee.id);
+      else if (Object.keys(initialAccess[referee.id] ?? {}).length > 0) ids.add(referee.id);
+    }
+    return ids;
+  });
 
   function levelFor(refereeId: string, category: Category): CategoryAccessLevel {
     return access.get(refereeId)?.[category] ?? "none";
+  }
+
+  function hasAnyAccess(refereeId: string) {
+    return Object.keys(access.get(refereeId) ?? {}).length > 0;
+  }
+
+  const visibleReferees = referees.filter((r) => visibleIds.has(r.id));
+
+  const query = normalize(search);
+  const suggestions =
+    query.length >= 2
+      ? referees
+          .filter((r) => !visibleIds.has(r.id) && normalize(r.full_name).includes(query))
+          .slice(0, 8)
+      : [];
+
+  function addToList(refereeId: string) {
+    setVisibleIds((prev) => new Set(prev).add(refereeId));
+    setSearch("");
+  }
+
+  /** Odobratie z tabuľky je čisto vizuálne — dá sa len u toho, kto nemá žiadne práva. */
+  function removeFromList(refereeId: string) {
+    setVisibleIds((prev) => {
+      const copy = new Set(prev);
+      copy.delete(refereeId);
+      return copy;
+    });
   }
 
   function change(
@@ -124,8 +173,9 @@ export function CategoryAdminsManager({ referees, initialAccess }: Props) {
             Administrátori
           </h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Udeľ niekomu admin práva pre konkrétny región, alebo z neho urob
-            plnohodnotného administrátora.
+            {visibleIds.size === 0
+              ? "Zatiaľ nikto — pridaj administrátora vyhľadaním mena."
+              : `${visibleIds.size} ${visibleIds.size === 1 ? "osoba" : visibleIds.size < 5 ? "osoby" : "osôb"} s prístupom do administrácie.`}
           </p>
         </div>
         <button
@@ -168,6 +218,36 @@ export function CategoryAdminsManager({ referees, initialAccess }: Props) {
         </button>
       </div>
 
+      <div className="relative mt-4">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Pridať administrátora — začni písať meno…"
+          className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+        />
+        {query.length >= 2 && (
+          <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+            {suggestions.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-zinc-400">
+                Nikto taký — alebo už je v zozname nižšie.
+              </p>
+            ) : (
+              suggestions.map((referee) => (
+                <button
+                  key={referee.id}
+                  type="button"
+                  onClick={() => addToList(referee.id)}
+                  className="block w-full px-3 py-2 text-left text-sm text-zinc-700 transition hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                  {referee.full_name}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="mt-4 overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           <thead>
@@ -189,14 +269,26 @@ export function CategoryAdminsManager({ referees, initialAccess }: Props) {
             </tr>
           </thead>
           <tbody>
-            {referees.map((referee) => {
+            {visibleReferees.map((referee) => {
               return (
                 <tr
                   key={referee.id}
                   className="border-t border-zinc-100 dark:border-zinc-900"
                 >
                   <td className="whitespace-nowrap px-2 py-2 font-medium text-zinc-800 dark:text-zinc-200">
-                    {referee.full_name}
+                    <span className="flex items-center gap-2">
+                      {referee.full_name}
+                      {!hasAnyAccess(referee.id) && referee.role === "referee" && (
+                        <button
+                          type="button"
+                          title="Odobrať zo zoznamu"
+                          onClick={() => removeFromList(referee.id)}
+                          className="text-zinc-300 transition hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-400"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </span>
                   </td>
                   <td className="border-l border-zinc-100 px-2 py-2 text-center dark:border-zinc-900">
                     <RoleCell referee={referee} />
@@ -236,6 +328,12 @@ export function CategoryAdminsManager({ referees, initialAccess }: Props) {
             })}
           </tbody>
         </table>
+
+        {visibleReferees.length === 0 && (
+          <p className="py-6 text-center text-sm text-zinc-400">
+            Zatiaľ tu nikto nie je — vyhľadaj meno vyššie a pridaj ho.
+          </p>
+        )}
       </div>
     </div>
   );
