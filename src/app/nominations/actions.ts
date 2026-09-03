@@ -5,8 +5,23 @@ import { createClient } from "@/lib/supabase/server";
 import { COMPETITIONS, scrapeCompetition } from "@/lib/szfb-scraper";
 import { sendEmail, sendBatchEmails, nominationSentEmailHtml } from "@/lib/email";
 import { geocodeVenuesBatch } from "@/lib/geocoding";
+import { CATEGORIES, type Category } from "@/lib/categories";
 
-async function requireSuperAdmin() {
+type NominationAdmin = {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  userId: string;
+  isSuperAdmin: boolean;
+  /** Kategórie, ktoré smie spravovať — super admin má všetky. */
+  categories: Category[];
+};
+
+/**
+ * Nominácie smie spravovať super admin (referees.role = 'admin') alebo regionálny
+ * admin (riadok v category_admins) — ten však len vo svojich kategóriách. RLS na
+ * tabuľke matches to už dovoľuje (matches_write_admin), tieto kontroly sú tu preto,
+ * aby zamietnutie prišlo ako zrozumiteľná hláška a nie ako tichý zápis do nuly riadkov.
+ */
+async function requireNominationAdmin(): Promise<NominationAdmin> {
   const supabase = await createClient();
 
   const {
@@ -23,9 +38,65 @@ async function requireSuperAdmin() {
     .eq("id", user.id)
     .single();
 
-  if (referee?.role !== "admin") {
+  if (referee?.role === "admin") {
+    return { supabase, userId: user.id, isSuperAdmin: true, categories: [...CATEGORIES] };
+  }
+
+  const { data: adminRows } = await supabase
+    .from("category_admins")
+    .select("category")
+    .eq("referee_id", user.id);
+
+  const categories = (adminRows ?? []).map((r) => r.category as Category);
+
+  if (categories.length === 0) {
     throw new Error("Túto akciu môže vykonať len administrátor.");
   }
+
+  return { supabase, userId: user.id, isSuperAdmin: false, categories };
+}
+
+/** Prístup ku konkrétnej kategórii (súťaž, ručne pridávaný zápas). */
+async function requireCategoryAdmin(category: string): Promise<NominationAdmin> {
+  const admin = await requireNominationAdmin();
+
+  if (!admin.categories.includes(category as Category)) {
+    throw new Error("Túto kategóriu spravuje iný administrátor.");
+  }
+
+  return admin;
+}
+
+/** Prístup k existujúcemu zápasu — kategóriu si dohľadá sám. */
+async function requireMatchAdmin(matchId: string): Promise<NominationAdmin> {
+  const admin = await requireNominationAdmin();
+
+  const { data: match } = await admin.supabase
+    .from("matches")
+    .select("category")
+    .eq("id", matchId)
+    .maybeSingle();
+
+  if (!match) {
+    throw new Error("Zápas sa nenašiel.");
+  }
+
+  if (!admin.categories.includes(match.category as Category)) {
+    throw new Error("Tento zápas spravuje iný administrátor.");
+  }
+
+  return admin;
+}
+
+/** Len super admin — akcie zasahujúce do dát mimo jednej kategórie. */
+async function requireSuperAdmin() {
+  const admin = await requireNominationAdmin();
+
+  if (!admin.isSuperAdmin) {
+    throw new Error("Túto akciu môže vykonať len administrátor.");
+  }
+
+  return admin;
 }
 
 /** Naimportuje/aktualizuje zápasy jednej súťaže zo szfb.sk. */

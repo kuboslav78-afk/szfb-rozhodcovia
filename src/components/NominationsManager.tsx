@@ -14,6 +14,7 @@ import type { LicenseLevel } from "@/lib/licenses";
 import type { Category } from "@/lib/categories";
 import { RefereePickerModal, type PickerReferee } from "@/components/RefereePickerModal";
 import { ManualMatchUpdate } from "@/components/ManualMatchUpdate";
+import { VenueGeocodingPanel } from "@/components/VenueGeocodingPanel";
 
 type Referee = { id: string; full_name: string; license_level: LicenseLevel | null };
 
@@ -321,12 +322,16 @@ function RefereeSlot({
   referees,
   availability,
   readOnly,
+  allMatches,
+  venueCoordinates,
 }: {
   match: Match;
   slot: 1 | 2;
   referees: Referee[];
   availability: AvailabilityRow[];
   readOnly: boolean;
+  allMatches: Match[];
+  venueCoordinates: VenueCoordinates;
 }) {
   const [, startTransition] = useTransition();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -369,6 +374,7 @@ function RefereeSlot({
             availableTo: row.available_to,
           }
         : undefined,
+      conflict: findRefereeConflict(r.id, match, allMatches, venueCoordinates),
     };
   });
 
@@ -444,12 +450,16 @@ function MatchRow({
   availability,
   newDay,
   readOnly,
+  allMatches,
+  venueCoordinates,
 }: {
   match: Match;
   referees: Referee[];
   availability: AvailabilityRow[];
   newDay: boolean;
   readOnly: boolean;
+  allMatches: Match[];
+  venueCoordinates: VenueCoordinates;
 }) {
   const [isPending, startTransition] = useTransition();
   const [acknowledged, setAcknowledged] = useState(false);
@@ -510,8 +520,24 @@ function MatchRow({
       </td>
       <td className="px-2 py-2">
         <div className="flex flex-col gap-1.5">
-          <RefereeSlot match={match} slot={1} referees={referees} availability={availability} readOnly={readOnly} />
-          <RefereeSlot match={match} slot={2} referees={referees} availability={availability} readOnly={readOnly} />
+          <RefereeSlot
+            match={match}
+            slot={1}
+            referees={referees}
+            availability={availability}
+            readOnly={readOnly}
+            allMatches={allMatches}
+            venueCoordinates={venueCoordinates}
+          />
+          <RefereeSlot
+            match={match}
+            slot={2}
+            referees={referees}
+            availability={availability}
+            readOnly={readOnly}
+            allMatches={allMatches}
+            venueCoordinates={venueCoordinates}
+          />
         </div>
       </td>
     </tr>
@@ -525,6 +551,7 @@ export function NominationsManager({
   referees,
   availability,
   readOnly,
+  venueCoordinates,
 }: Props) {
   const [leagueFilter, setLeagueFilter] = useState<string>("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
@@ -561,6 +588,7 @@ export function NominationsManager({
         <>
           <ImportPanel competitions={competitions} />
           <ManualMatchUpdate category={category} />
+          <VenueGeocodingPanel />
         </>
       )}
 
@@ -628,6 +656,8 @@ export function NominationsManager({
                 availability={availability}
                 newDay={i === 0 || filtered[i - 1].match_date !== m.match_date}
                 readOnly={readOnly}
+                allMatches={initialMatches}
+                venueCoordinates={venueCoordinates}
               />
             ))}
           </tbody>

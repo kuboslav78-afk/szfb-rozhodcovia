@@ -17,6 +17,7 @@ export type PickerReferee = {
   name: string;
   license: LicenseLevel | null;
   entry: DayEntry | undefined;
+  conflict: string | null;
 };
 
 type Props = {
@@ -57,17 +58,27 @@ function RefereeButton({
     <button
       type="button"
       onClick={() => onPick(referee.id)}
-      className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-left text-sm text-zinc-700 transition hover:border-brand-indigo hover:bg-brand-indigo/5 dark:border-zinc-800 dark:text-zinc-200 dark:hover:border-brand-indigo"
+      title={referee.conflict ? `Možná kolízia: ${referee.conflict}` : undefined}
+      className={`flex w-full flex-col items-start gap-0.5 rounded-lg border px-3 py-2 text-left text-sm transition ${
+        referee.conflict
+          ? "border-red-300 bg-red-50 text-red-800 hover:border-red-400 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+          : "border-zinc-200 text-zinc-700 hover:border-brand-indigo hover:bg-brand-indigo/5 dark:border-zinc-800 dark:text-zinc-200 dark:hover:border-brand-indigo"
+      }`}
     >
-      <span className="flex items-center">
-        {referee.name}
-        <LicenseBadge level={referee.license} />
-      </span>
-      {referee.entry?.reason && (
-        <span className="ml-2 text-xs text-zinc-400">
-          {referee.entry.reason}
-          {timeRange(referee.entry)}
+      <span className="flex w-full items-center justify-between">
+        <span className="flex items-center">
+          {referee.name}
+          <LicenseBadge level={referee.license} />
         </span>
+        {referee.entry?.reason && (
+          <span className="ml-2 text-xs text-zinc-400">
+            {referee.entry.reason}
+            {timeRange(referee.entry)}
+          </span>
+        )}
+      </span>
+      {referee.conflict && (
+        <span className="text-xs font-medium">⚠ Možno nestihne — koliduje s {referee.conflict}</span>
       )}
     </button>
   );
@@ -78,8 +89,11 @@ export function RefereePickerModal({ dateStr, referees, onPick, onClose }: Props
 
   const filtered = useMemo(() => {
     const q = normalize(query.trim());
-    if (!q) return referees;
-    return referees.filter((r) => normalize(r.name).includes(q));
+    const base = q ? referees.filter((r) => normalize(r.name).includes(q)) : referees;
+    // Bez vyhľadávania rozhodcov s kolíziou (dvoma zápasmi, ktoré nestihne)
+    // vôbec neponúkame. Keď admin napíše meno priamo, vie ho napriek tomu
+    // nájsť a priradiť — s viditeľným upozornením — pre výnimočné prípady.
+    return q ? base : base.filter((r) => !r.conflict);
   }, [referees, query]);
 
   const available = filtered.filter((r) => r.entry?.status === "available");
