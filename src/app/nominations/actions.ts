@@ -43,12 +43,12 @@ export async function importCompetition(competitionId: string) {
   for (const match of scraped) {
     const { data: existing } = await supabase
       .from("matches")
-      .select("id")
+      .select("id, match_time")
       .eq("external_competition_id", competition.id)
       .eq("external_match_id", match.externalMatchId)
       .maybeSingle();
 
-    const row = {
+    const row: Record<string, unknown> = {
       category: competition.category,
       league: competition.league,
       external_competition_id: competition.id,
@@ -64,6 +64,13 @@ export async function importCompetition(competitionId: string) {
     };
 
     if (existing) {
+      // Ak sa oproti predošlému importu zmenil čas, označíme to na
+      // zvýraznenie v appke — kým to admin nepotvrdí (acknowledgeTimeChange).
+      if (existing.match_time !== null && existing.match_time !== match.matchTime) {
+        row.previous_match_time = existing.match_time;
+        row.time_changed_at = new Date().toISOString();
+      }
+
       const { error } = await supabase.from("matches").update(row).eq("id", existing.id);
       if (error) throw new Error(error.message);
       updated++;
@@ -77,6 +84,21 @@ export async function importCompetition(competitionId: string) {
   revalidatePath("/nominations");
 
   return { created, updated, total: scraped.length };
+}
+
+/** Admin potvrdí, že si všimol zmenu času — zruší zvýraznenie. */
+export async function acknowledgeTimeChange(matchId: string) {
+  await requireSuperAdmin();
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("matches")
+    .update({ previous_match_time: null, time_changed_at: null })
+    .eq("id", matchId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/nominations");
 }
 
 export async function setMatchReferee(

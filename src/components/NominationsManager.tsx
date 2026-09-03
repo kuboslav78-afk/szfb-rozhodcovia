@@ -5,6 +5,7 @@ import {
   importCompetition,
   setMatchReferee,
   setMatchRefereeStatus,
+  acknowledgeTimeChange,
   type NominationStatus,
 } from "@/app/nominations/actions";
 import type { AvailabilityStatus } from "@/app/availability/actions";
@@ -38,6 +39,8 @@ type Match = {
   referee1_status: NominationStatus;
   referee2_id: string | null;
   referee2_status: NominationStatus;
+  previous_match_time: string | null;
+  time_changed_at: string | null;
 };
 
 type Props = {
@@ -353,13 +356,22 @@ function MatchRow({
   availability: AvailabilityRow[];
   newDay: boolean;
 }) {
+  const [isPending, startTransition] = useTransition();
+  const [acknowledged, setAcknowledged] = useState(false);
+  const timeChanged = Boolean(match.time_changed_at) && !acknowledged;
+
+  function handleAcknowledge() {
+    setAcknowledged(true);
+    startTransition(async () => {
+      await acknowledgeTimeChange(match.id);
+    });
+  }
+
   return (
     <tr
-      className={
-        newDay
-          ? "border-t-2 border-zinc-300 dark:border-zinc-700"
-          : "border-t border-zinc-100 dark:border-zinc-900"
-      }
+      className={`${
+        newDay ? "border-t-2 border-zinc-300 dark:border-zinc-700" : "border-t border-zinc-100 dark:border-zinc-900"
+      } ${timeChanged ? "bg-amber-50 dark:bg-amber-950/30" : ""}`}
     >
       <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-400">
         {match.match_number ?? "—"}
@@ -367,6 +379,18 @@ function MatchRow({
       <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-500">
         {formatDateLabel(match.match_date)}
         {match.match_time && <span className="block">{match.match_time}</span>}
+        {timeChanged && (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={handleAcknowledge}
+            title="Klikni pre potvrdenie, že si zmenu videl"
+            className="mt-1 block rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 transition hover:bg-amber-300 dark:bg-amber-900 dark:text-amber-200"
+          >
+            {match.previous_match_time ? `${match.previous_match_time.slice(0, 5)} → ` : ""}
+            ZMENA ČASU ✓
+          </button>
+        )}
       </td>
       <td className="px-2 py-2 text-sm text-zinc-800 dark:text-zinc-200">
         {match.team_home} <span className="text-zinc-400">vs</span> {match.team_away}
@@ -390,6 +414,8 @@ function MatchRow({
 export function NominationsManager({ competitions, initialMatches, referees, availability }: Props) {
   const [leagueFilter, setLeagueFilter] = useState<string>("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
+  const [hideNominated, setHideNominated] = useState(false);
 
   const leagues = useMemo(
     () => Array.from(new Set(initialMatches.map((m) => m.league))).sort(),
@@ -400,19 +426,33 @@ export function NominationsManager({ competitions, initialMatches, referees, ava
     [initialMatches],
   );
 
+  const searchQuery = search.trim().toLowerCase();
+
   const filtered = initialMatches
-    .filter(
-      (m) =>
-        (leagueFilter === "all" || m.league === leagueFilter) &&
-        (monthFilter === "all" || m.match_date.startsWith(monthFilter)),
-    )
+    .filter((m) => {
+      if (leagueFilter !== "all" && m.league !== leagueFilter) return false;
+      if (monthFilter !== "all" && !m.match_date.startsWith(monthFilter)) return false;
+      if (hideNominated && m.referee1_id && m.referee2_id) return false;
+      if (searchQuery) {
+        const haystack = `${m.match_number ?? ""} ${m.team_home} ${m.team_away}`.toLowerCase();
+        if (!haystack.includes(searchQuery)) return false;
+      }
+      return true;
+    })
     .sort(compareMatches);
 
   return (
     <div>
       <ImportPanel competitions={competitions} />
 
-      <div className="mb-4 flex flex-wrap gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Hľadať podľa čísla zápasu alebo tímu…"
+          className="min-w-[220px] flex-1 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm outline-none transition focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+        />
         <select
           value={leagueFilter}
           onChange={(e) => setLeagueFilter(e.target.value)}
@@ -437,6 +477,15 @@ export function NominationsManager({ competitions, initialMatches, referees, ava
             </option>
           ))}
         </select>
+        <label className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+          <input
+            type="checkbox"
+            checked={hideNominated}
+            onChange={(e) => setHideNominated(e.target.checked)}
+            className="rounded border-zinc-300 text-brand-indigo focus:ring-brand-indigo dark:border-zinc-700"
+          />
+          Skryť nominované
+        </label>
         <span className="self-center text-xs text-zinc-400">{filtered.length} zápasov</span>
       </div>
 
