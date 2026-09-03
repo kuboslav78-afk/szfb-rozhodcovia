@@ -42,6 +42,7 @@ type Match = {
   referee2_id: string | null;
   referee2_status: NominationStatus;
   previous_match_time: string | null;
+  previous_match_date: string | null;
   time_changed_at: string | null;
 };
 
@@ -383,6 +384,12 @@ function MatchRow({
   const [isPending, startTransition] = useTransition();
   const [acknowledged, setAcknowledged] = useState(false);
   const timeChanged = Boolean(match.time_changed_at) && !acknowledged;
+  const previousLabel = [
+    match.previous_match_date ? formatDateLabel(match.previous_match_date) : null,
+    match.previous_match_time ? match.previous_match_time.slice(0, 5) : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   function handleAcknowledge() {
     setAcknowledged(true);
@@ -405,8 +412,8 @@ function MatchRow({
         {match.match_time && <span className="block">{match.match_time}</span>}
         {timeChanged && readOnly && (
           <span className="mt-1 block w-fit rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-900 dark:text-amber-200">
-            {match.previous_match_time ? `${match.previous_match_time.slice(0, 5)} → ` : ""}
-            ZMENA ČASU
+            {previousLabel ? `${previousLabel} → ` : ""}
+            ZMENA TERMÍNU
           </span>
         )}
         {timeChanged && !readOnly && (
@@ -417,8 +424,8 @@ function MatchRow({
             title="Klikni pre potvrdenie, že si zmenu videl"
             className="mt-1 block rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 transition hover:bg-amber-300 dark:bg-amber-900 dark:text-amber-200"
           >
-            {match.previous_match_time ? `${match.previous_match_time.slice(0, 5)} → ` : ""}
-            ZMENA ČASU ✓
+            {previousLabel ? `${previousLabel} → ` : ""}
+            ZMENA TERMÍNU ✓
           </button>
         )}
       </td>

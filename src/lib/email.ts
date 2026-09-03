@@ -134,7 +134,7 @@ export function nominationSentEmailHtml(params: {
 
   const intro =
     reason === "time_changed"
-      ? "zmenil sa čas zápasu, na ktorý si už bol/a nominovaný/á — potvrď prosím nomináciu znova:"
+      ? "zmenil sa termín zápasu, na ktorý si už bol/a nominovaný/á — potvrď prosím nomináciu znova:"
       : "prišla ti nová nominácia na zápas — potvrď ju prosím čo najskôr:";
 
   return baseWrapper(`
