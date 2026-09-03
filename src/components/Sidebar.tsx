@@ -120,6 +120,8 @@ type Props = {
   canToggleView?: boolean;
   /** Aktuálny (UI) pohľad, relevantný len keď canToggleView je true. */
   viewMode?: "admin" | "referee";
+  /** KRO sekcia (roster, e-mail) — viditeľná pre adminov aj pre viewer účty (napr. demo pre vedenie). */
+  canSeeKro?: boolean;
 };
 
 function Brand() {
@@ -172,11 +174,13 @@ function NavLink({ item, active, onNavigate }: { item: NavItem; active: boolean;
 function Nav({
   current,
   isAdmin,
+  canSeeKro,
   pendingNominations,
   onNavigate,
 }: {
   current: NavKey | null;
   isAdmin: boolean;
+  canSeeKro: boolean;
   pendingNominations: number;
   onNavigate?: () => void;
 }) {
@@ -193,20 +197,20 @@ function Nav({
       {items.map((item) => (
         <NavLink key={item.key} item={item} active={current === item.key} onNavigate={onNavigate} />
       ))}
+      {(canSeeKro || isAdmin) && <div className="my-2 h-px bg-zinc-100 dark:bg-zinc-900" />}
+      {canSeeKro && (
+        <NavLink
+          item={{ key: "kro", href: "/kro", label: "KRO", icon: UsersIcon }}
+          active={current === "kro"}
+          onNavigate={onNavigate}
+        />
+      )}
       {isAdmin && (
-        <>
-          <div className="my-2 h-px bg-zinc-100 dark:bg-zinc-900" />
-          <NavLink
-            item={{ key: "kro", href: "/kro", label: "KRO", icon: UsersIcon }}
-            active={current === "kro"}
-            onNavigate={onNavigate}
-          />
-          <NavLink
-            item={{ key: "administracia", href: "/dostupnost?view=admin", label: "Administrácia", icon: ShieldIcon }}
-            active={current === "administracia"}
-            onNavigate={onNavigate}
-          />
-        </>
+        <NavLink
+          item={{ key: "administracia", href: "/dostupnost?view=admin", label: "Administrácia", icon: ShieldIcon }}
+          active={current === "administracia"}
+          onNavigate={onNavigate}
+        />
       )}
     </nav>
   );
@@ -283,7 +287,9 @@ export function Sidebar({
   pendingNominations,
   canToggleView,
   viewMode,
+  canSeeKro,
 }: Props) {
+  const showKro = canSeeKro ?? isAdmin;
   const [open, setOpen] = useState(false);
 
   return (
@@ -347,6 +353,7 @@ export function Sidebar({
               <Nav
                 current={current}
                 isAdmin={isAdmin}
+                canSeeKro={showKro}
                 pendingNominations={pendingNominations}
                 onNavigate={() => setOpen(false)}
               />
@@ -365,7 +372,7 @@ export function Sidebar({
           </div>
         )}
         <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
-          <Nav current={current} isAdmin={isAdmin} pendingNominations={pendingNominations} />
+          <Nav current={current} isAdmin={isAdmin} canSeeKro={showKro} pendingNominations={pendingNominations} />
         </div>
         <UserFooter refereeName={refereeName} roleLabel={roleLabel} />
       </aside>

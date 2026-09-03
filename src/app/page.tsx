@@ -221,6 +221,7 @@ export default async function HomePage() {
         refereeName={referee.full_name}
         roleLabel={realIsAdmin ? "Administrátor · náhľad rozhodcu" : referee.role === "viewer" ? "Viewer" : null}
         isAdmin={isSuperAdmin}
+        canSeeKro={referee.role === "viewer"}
         pendingNominations={pendingNominations}
         canToggleView={realIsAdmin}
         viewMode="referee"

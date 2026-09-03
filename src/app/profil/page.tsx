@@ -56,6 +56,7 @@ export default async function ProfilPage() {
               : null
         }
         isAdmin={isSuperAdmin}
+        canSeeKro={isSuperAdmin || referee.role === "viewer"}
         pendingNominations={pendingNominations}
         canToggleView={realIsAdmin}
         viewMode={isSuperAdmin ? "admin" : "referee"}

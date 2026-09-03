@@ -345,6 +345,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
               : null
         }
         isAdmin={isSuperAdmin}
+        canSeeKro={isSuperAdmin || isViewer}
         pendingNominations={pendingNominations}
         canToggleView={realIsAdmin}
         viewMode={isSuperAdmin ? "admin" : "referee"}

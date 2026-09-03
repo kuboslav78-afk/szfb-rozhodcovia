@@ -8,24 +8,42 @@ import { NominationsManager } from "@/components/NominationsManager";
 import { MyNominations, type MyNomination } from "@/components/MyNominations";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin } from "@/lib/view-mode";
-import { parseCategoryParam } from "@/lib/categories";
+import { CATEGORIES, CATEGORY_LABELS, parseCategoryParam, type Category } from "@/lib/categories";
 
 function singleParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
 export default async function NominationsPage(props: PageProps<"/nominations">) {
-  const searchParams = await props.searchParams;
-  const category = parseCategoryParam(singleParam(searchParams.category));
+  const searchParamsRaw = await props.searchParams;
 
   const referee = await requireUser();
   const supabase = await createClient();
   const realIsAdmin = referee.role === "admin";
-  const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
+  const isEffectiveAdmin = await getEffectiveIsAdmin(referee.role);
+  const isViewerRole = referee.role === "viewer";
 
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
 
-  if (!isSuperAdmin) {
+  let myAdminCategories: Category[] = [];
+  if (!realIsAdmin && !isViewerRole) {
+    const { data } = await supabase.from("category_admins").select("category").eq("referee_id", referee.id);
+    myAdminCategories = (data ?? []).map((r) => r.category as Category);
+  }
+
+  // Plný admin a viewer vidia (viewer len na čítanie) všetky regióny;
+  // regionálny admin (category_admins) len tie svoje. Keď je v UI "náhľad
+  // rozhodcu", správca sa vôbec nedostane do admin vetvy — vidí "Moje nominácie".
+  const allowedCategories: Category[] = realIsAdmin || isViewerRole ? [...CATEGORIES] : myAdminCategories;
+  const canManageNominations = isEffectiveAdmin || isViewerRole || myAdminCategories.length > 0;
+  const readOnly = isViewerRole;
+
+  const requestedCategory = parseCategoryParam(singleParam(searchParamsRaw.category));
+  const category: Category = allowedCategories.includes(requestedCategory)
+    ? requestedCategory
+    : (allowedCategories[0] ?? "celostatny");
+
+  if (!canManageNominations) {
     const { data: matches } = await supabase
       .from("matches")
       .select(
@@ -76,6 +94,7 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
             realIsAdmin ? "Administrátor · náhľad rozhodcu" : referee.role === "viewer" ? "Viewer" : null
           }
           isAdmin={false}
+          canSeeKro={isViewerRole}
           pendingNominations={pendingNominations}
           canToggleView={realIsAdmin}
           viewMode="referee"
@@ -122,24 +141,32 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
 
   const competitions = COMPETITIONS.filter((c) => c.category === category);
 
+  const roleLabel = realIsAdmin
+    ? "Administrátor"
+    : isViewerRole
+      ? "Viewer"
+      : `Regionálny admin · ${allowedCategories.map((c) => CATEGORY_LABELS[c]).join(", ")}`;
+
   return (
     <div className="lg:flex">
       <Sidebar
         current="nominacie"
         refereeName={referee.full_name}
-        roleLabel="Administrátor"
-        isAdmin={isSuperAdmin}
+        roleLabel={roleLabel}
+        isAdmin={isEffectiveAdmin}
+        canSeeKro={isEffectiveAdmin || isViewerRole}
         pendingNominations={pendingNominations}
         canToggleView={realIsAdmin}
         viewMode="admin"
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-10">
-          <PageTitle className="mb-6">Nominácie</PageTitle>
-          <NominationCategoryTabs active={category} />
+          <PageTitle className="mb-6">Nominácie{readOnly ? " · len na čítanie" : ""}</PageTitle>
+          <NominationCategoryTabs active={category} allowed={allowedCategories} />
           <NominationsManager
             key={category}
             competitions={competitions}
+            readOnly={readOnly}
             initialMatches={matches ?? []}
             referees={referees ?? []}
             availability={availabilityRows ?? []}

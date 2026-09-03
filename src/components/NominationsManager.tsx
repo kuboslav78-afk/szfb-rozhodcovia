@@ -49,6 +49,7 @@ type Props = {
   initialMatches: Match[];
   referees: Referee[];
   availability: AvailabilityRow[];
+  readOnly: boolean;
 };
 
 const STATUS_LABELS: Record<NominationStatus, string> = {
@@ -246,11 +247,13 @@ function RefereeSlot({
   slot,
   referees,
   availability,
+  readOnly,
 }: {
   match: Match;
   slot: 1 | 2;
   referees: Referee[];
   availability: AvailabilityRow[];
+  readOnly: boolean;
 }) {
   const [, startTransition] = useTransition();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -295,6 +298,22 @@ function RefereeSlot({
         : undefined,
     };
   });
+
+  if (readOnly) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="rounded-md border border-zinc-100 bg-zinc-50 px-2.5 py-1.5 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-300">
+          {refereeName(referees, localRefereeId || null) ?? `— rozhodca ${slot} —`}
+        </span>
+        {localRefereeId && (
+          <span
+            title={STATUS_LABELS[localStatus]}
+            className={`h-5 w-5 shrink-0 rounded-full border-2 ${STATUS_CLASSES[localStatus]}`}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-2">
@@ -351,11 +370,13 @@ function MatchRow({
   referees,
   availability,
   newDay,
+  readOnly,
 }: {
   match: Match;
   referees: Referee[];
   availability: AvailabilityRow[];
   newDay: boolean;
+  readOnly: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [acknowledged, setAcknowledged] = useState(false);
@@ -380,7 +401,13 @@ function MatchRow({
       <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-500">
         {formatDateLabel(match.match_date)}
         {match.match_time && <span className="block">{match.match_time}</span>}
-        {timeChanged && (
+        {timeChanged && readOnly && (
+          <span className="mt-1 block w-fit rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-900 dark:text-amber-200">
+            {match.previous_match_time ? `${match.previous_match_time.slice(0, 5)} → ` : ""}
+            ZMENA ČASU
+          </span>
+        )}
+        {timeChanged && !readOnly && (
           <button
             type="button"
             disabled={isPending}
@@ -404,15 +431,15 @@ function MatchRow({
       </td>
       <td className="px-2 py-2">
         <div className="flex flex-col gap-1.5">
-          <RefereeSlot match={match} slot={1} referees={referees} availability={availability} />
-          <RefereeSlot match={match} slot={2} referees={referees} availability={availability} />
+          <RefereeSlot match={match} slot={1} referees={referees} availability={availability} readOnly={readOnly} />
+          <RefereeSlot match={match} slot={2} referees={referees} availability={availability} readOnly={readOnly} />
         </div>
       </td>
     </tr>
   );
 }
 
-export function NominationsManager({ competitions, initialMatches, referees, availability }: Props) {
+export function NominationsManager({ competitions, initialMatches, referees, availability, readOnly }: Props) {
   const [leagueFilter, setLeagueFilter] = useState<string>("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -444,8 +471,12 @@ export function NominationsManager({ competitions, initialMatches, referees, ava
 
   return (
     <div>
-      <ImportPanel competitions={competitions} />
-      <ManualMatchUpdate />
+      {!readOnly && (
+        <>
+          <ImportPanel competitions={competitions} />
+          <ManualMatchUpdate />
+        </>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input
@@ -510,6 +541,7 @@ export function NominationsManager({ competitions, initialMatches, referees, ava
                 referees={referees}
                 availability={availability}
                 newDay={i === 0 || filtered[i - 1].match_date !== m.match_date}
+                readOnly={readOnly}
               />
             ))}
           </tbody>

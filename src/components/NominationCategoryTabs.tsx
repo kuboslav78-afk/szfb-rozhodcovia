@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { CATEGORIES, CATEGORY_LABELS, type Category } from "@/lib/categories";
 
-export function NominationCategoryTabs({ active }: { active: Category }) {
+export function NominationCategoryTabs({ active, allowed }: { active: Category; allowed?: Category[] }) {
+  const categories = allowed ?? CATEGORIES;
+  if (categories.length <= 1) return null;
+
   return (
     <div className="mb-6 flex flex-wrap gap-1 rounded-lg border border-zinc-200 p-1 text-sm dark:border-zinc-800">
-      {CATEGORIES.map((category) => (
+      {categories.map((category) => (
         <Link
           key={category}
           href={`/nominations?category=${category}`}

@@ -27,6 +27,7 @@ export default async function TestovaniePage() {
               : null
         }
         isAdmin={isSuperAdmin}
+        canSeeKro={isSuperAdmin || referee.role === "viewer"}
         pendingNominations={pendingNominations}
         canToggleView={realIsAdmin}
         viewMode={isSuperAdmin ? "admin" : "referee"}
