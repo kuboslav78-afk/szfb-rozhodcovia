@@ -12,6 +12,7 @@ import type { AvailabilityStatus } from "@/app/availability/actions";
 import type { CompetitionConfig } from "@/lib/szfb-scraper";
 import type { LicenseLevel } from "@/lib/licenses";
 import { RefereePickerModal, type PickerReferee } from "@/components/RefereePickerModal";
+import { ManualMatchUpdate } from "@/components/ManualMatchUpdate";
 
 type Referee = { id: string; full_name: string; license_level: LicenseLevel | null };
 
@@ -444,6 +445,7 @@ export function NominationsManager({ competitions, initialMatches, referees, ava
   return (
     <div>
       <ImportPanel competitions={competitions} />
+      <ManualMatchUpdate />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input
