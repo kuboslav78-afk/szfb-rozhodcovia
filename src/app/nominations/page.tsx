@@ -4,11 +4,16 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageTitle } from "@/components/PageTitle";
 import { NominationCategoryTabs } from "@/components/NominationCategoryTabs";
 import { COMPETITIONS } from "@/lib/szfb-scraper";
-import { NominationsManager } from "@/components/NominationsManager";
+import {
+  NominationsManager,
+  type NominationMatch,
+} from "@/components/NominationsManager";
+import { fetchAllRows } from "@/lib/paginate";
 import { MyNominations, type MyNomination } from "@/components/MyNominations";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
 import { getCategoryAccess } from "@/lib/category-access";
+import type { AvailabilityStatus } from "@/app/availability/actions";
 import { CATEGORIES, CATEGORY_LABELS, parseCategoryParam, type Category } from "@/lib/categories";
 import { getAllVenueCoordinates } from "@/lib/geocoding";
 
@@ -126,19 +131,25 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
     );
   }
 
-  const [{ data: matches }, { data: categoryRefRows }] = await Promise.all([
-    supabase
-      .from("matches")
-      .select("*")
-      .eq("category", category)
-      .order("match_date")
-      .order("match_time"),
+  // Zápasy aj dostupnosť sa stránkujú — celá sezóna jednej kategórie prekročí
+  // 1000-riadkový limit PostgRESTu a zvyšok by ticho zmizol z tabuľky nominácií.
+  const [matches, { data: categoryRefRows }] = await Promise.all([
+    fetchAllRows<NominationMatch>((from, to) =>
+      supabase
+        .from("matches")
+        .select("*")
+        .eq("category", category)
+        .order("match_date")
+        .order("match_time")
+        .order("id")
+        .range(from, to),
+    ),
     supabase.from("referee_categories").select("referee_id").eq("category", category),
   ]);
 
   const categoryRefIds = (categoryRefRows ?? []).map((r) => r.referee_id as string);
 
-  const [{ data: referees }, { data: availabilityRows }] = await Promise.all([
+  const [{ data: referees }, availabilityRows] = await Promise.all([
     categoryRefIds.length
       ? supabase
           .from("referees")
@@ -148,12 +159,24 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
           .order("full_name")
       : Promise.resolve({ data: [] }),
     categoryRefIds.length
-      ? supabase
-          .from("availability")
-          .select("referee_id, available_date, status, reason, available_from, available_to")
-          .eq("category", category)
-          .in("referee_id", categoryRefIds)
-      : Promise.resolve({ data: [] }),
+      ? fetchAllRows<{
+          referee_id: string;
+          available_date: string;
+          status: AvailabilityStatus;
+          reason: string | null;
+          available_from: string | null;
+          available_to: string | null;
+        }>((from, to) =>
+          supabase
+            .from("availability")
+            .select("referee_id, available_date, status, reason, available_from, available_to")
+            .eq("category", category)
+            .in("referee_id", categoryRefIds)
+            .order("available_date")
+            .order("referee_id")
+            .range(from, to),
+        )
+      : Promise.resolve([]),
   ]);
 
   const competitions = COMPETITIONS.filter((c) => c.category === category);
@@ -186,9 +209,9 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
             category={category}
             competitions={competitions}
             readOnly={readOnly}
-            initialMatches={matches ?? []}
+            initialMatches={matches}
             referees={referees ?? []}
-            availability={availabilityRows ?? []}
+            availability={availabilityRows}
             venueCoordinates={venueCoordinates}
           />
         </main>

@@ -27,7 +27,7 @@ type AvailabilityRow = {
   available_to: string | null;
 };
 
-type Match = {
+export type NominationMatch = {
   id: string;
   category: string;
   league: string;
@@ -52,7 +52,7 @@ type VenueCoordinates = Record<string, { lat: number; lng: number }>;
 type Props = {
   category: Category;
   competitions: CompetitionConfig[];
-  initialMatches: Match[];
+  initialMatches: NominationMatch[];
   referees: Referee[];
   availability: AvailabilityRow[];
   readOnly: boolean;
@@ -92,7 +92,7 @@ function leaguePriority(league: string) {
   return LEAGUE_PRIORITY[league] ?? Number.MAX_SAFE_INTEGER;
 }
 
-function compareMatches(a: Match, b: Match) {
+function compareMatches(a: NominationMatch, b: NominationMatch) {
   if (a.match_date !== b.match_date) return a.match_date < b.match_date ? -1 : 1;
 
   const pa = leaguePriority(a.league);
@@ -145,8 +145,8 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
 
 function findRefereeConflict(
   refereeId: string,
-  currentMatch: Match,
-  allMatches: Match[],
+  currentMatch: NominationMatch,
+  allMatches: NominationMatch[],
   venueCoordinates: VenueCoordinates,
 ): string | null {
   const sameDay = allMatches.filter((m) => {
@@ -325,12 +325,12 @@ function RefereeSlot({
   allMatches,
   venueCoordinates,
 }: {
-  match: Match;
+  match: NominationMatch;
   slot: 1 | 2;
   referees: Referee[];
   availability: AvailabilityRow[];
   readOnly: boolean;
-  allMatches: Match[];
+  allMatches: NominationMatch[];
   venueCoordinates: VenueCoordinates;
 }) {
   const [, startTransition] = useTransition();
@@ -453,12 +453,12 @@ function MatchRow({
   allMatches,
   venueCoordinates,
 }: {
-  match: Match;
+  match: NominationMatch;
   referees: Referee[];
   availability: AvailabilityRow[];
   newDay: boolean;
   readOnly: boolean;
-  allMatches: Match[];
+  allMatches: NominationMatch[];
   venueCoordinates: VenueCoordinates;
 }) {
   const [isPending, startTransition] = useTransition();

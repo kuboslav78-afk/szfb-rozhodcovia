@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/paginate";
 
 export type Coordinates = { lat: number; lng: number };
 
@@ -43,17 +44,23 @@ async function geocodeQuery(query: string): Promise<GeocodeResult> {
 export async function getVenuesWithoutCoordinates(): Promise<string[]> {
   const supabase = await createClient();
 
-  const { data: matchVenues } = await supabase
-    .from("matches")
-    .select("venue")
-    .not("venue", "is", null);
-
-  const distinctVenues = Array.from(
-    new Set((matchVenues ?? []).map((m) => m.venue as string).filter((v) => v.trim())),
+  const matchVenues = await fetchAllRows<{ venue: string }>((from, to) =>
+    supabase
+      .from("matches")
+      .select("venue")
+      .not("venue", "is", null)
+      .order("venue")
+      .range(from, to),
   );
 
-  const { data: cached } = await supabase.from("venue_coordinates").select("venue");
-  const cachedSet = new Set((cached ?? []).map((c) => c.venue));
+  const distinctVenues = Array.from(
+    new Set(matchVenues.map((m) => m.venue).filter((v) => v.trim())),
+  );
+
+  const cached = await fetchAllRows<{ venue: string }>((from, to) =>
+    supabase.from("venue_coordinates").select("venue").order("venue").range(from, to),
+  );
+  const cachedSet = new Set(cached.map((c) => c.venue));
 
   return distinctVenues.filter((v) => !cachedSet.has(v)).sort();
 }
@@ -105,9 +112,12 @@ export async function geocodeVenuesByCity(
 /** Súradnice všetkých doteraz geokódovaných hál — pre výpočet kolízií na klientovi. */
 export async function getAllVenueCoordinates(): Promise<Record<string, Coordinates>> {
   const supabase = await createClient();
-  const { data } = await supabase.from("venue_coordinates").select("venue, lat, lng");
+  const rows = await fetchAllRows<{ venue: string; lat: number; lng: number }>((from, to) =>
+    supabase.from("venue_coordinates").select("venue, lat, lng").order("venue").range(from, to),
+  );
+
   const map: Record<string, Coordinates> = {};
-  for (const row of data ?? []) {
+  for (const row of rows) {
     map[row.venue] = { lat: row.lat, lng: row.lng };
   }
   return map;

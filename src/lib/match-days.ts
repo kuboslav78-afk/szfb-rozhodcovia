@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Category } from "@/lib/categories";
+import { fetchAllRows } from "@/lib/paginate";
 
 /**
  * Dopočíta hracie dni kategórie z naimportovaných zápasov: pre každý deň, v ktorý
@@ -15,28 +16,19 @@ export async function syncMatchDaysFromMatches(
   supabase: SupabaseClient,
   category: Category,
 ): Promise<{ created: number; updated: number }> {
-  // PostgREST vracia naraz najviac 1000 riadkov a jedna kategória ich za sezónu
-  // pokojne prekročí — bez stránkovania by nám dni z konca sezóny ticho vypadli.
-  const PAGE_SIZE = 1000;
-  const leaguesByDate = new Map<string, Set<string>>();
-
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data: page, error } = await supabase
+  const matchRows = await fetchAllRows<{ match_date: string; league: string }>((from, to) =>
+    supabase
       .from("matches")
       .select("match_date, league")
       .eq("category", category)
       .order("match_date")
-      .range(from, from + PAGE_SIZE - 1);
+      .range(from, to),
+  );
 
-    if (error) throw new Error(error.message);
-
-    for (const row of page ?? []) {
-      const date = row.match_date as string;
-      if (!leaguesByDate.has(date)) leaguesByDate.set(date, new Set());
-      leaguesByDate.get(date)!.add(row.league as string);
-    }
-
-    if ((page?.length ?? 0) < PAGE_SIZE) break;
+  const leaguesByDate = new Map<string, Set<string>>();
+  for (const row of matchRows) {
+    if (!leaguesByDate.has(row.match_date)) leaguesByDate.set(row.match_date, new Set());
+    leaguesByDate.get(row.match_date)!.add(row.league);
   }
 
   if (leaguesByDate.size === 0) return { created: 0, updated: 0 };
