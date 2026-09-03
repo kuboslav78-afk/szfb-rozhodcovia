@@ -88,7 +88,7 @@ export default function LoginPage() {
       <main className="flex flex-1 items-center justify-center bg-zinc-50 px-4 py-10 dark:bg-black">
       <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <h1 className="font-display text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-          Dostupnosť rozhodcov
+          Portál rozhodcov SZFB
         </h1>
         <p className="mt-3 text-sm text-zinc-500">
           Prihlás sa svojím účtom.

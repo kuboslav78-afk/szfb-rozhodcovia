@@ -26,8 +26,8 @@ const archivoBlack = Archivo_Black({
 });
 
 export const metadata: Metadata = {
-  title: "Dostupnosť rozhodcov · SZFB",
-  description: "Kalendár dostupnosti rozhodcov SZFB.",
+  title: "Portál rozhodcov SZFB",
+  description: "Portál rozhodcov Slovenského zväzu florbalu.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
