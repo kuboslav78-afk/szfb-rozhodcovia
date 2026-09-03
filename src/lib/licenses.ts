@@ -11,3 +11,23 @@ export const LICENSE_LABELS: Record<LicenseLevel, string> = {
 export function isLicenseLevel(value: string): value is LicenseLevel {
   return (LICENSE_LEVELS as readonly string[]).includes(value);
 }
+
+/** Skúsi rozpoznať licenčný stupeň z voľného textu (napr. z importovanej Excel tabuľky). */
+export function guessLicenseFromLabel(raw: string): LicenseLevel | null {
+  const normalized = raw
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalized || normalized === "ziadny" || normalized === "ziadna" || normalized === "-") {
+    return null;
+  }
+  if (isLicenseLevel(normalized.toUpperCase())) {
+    return normalized.toUpperCase() as LicenseLevel;
+  }
+  if (normalized.includes("celostat")) return "B";
+  if (normalized.includes("regional") || normalized.includes("kvalifikacn")) return "C";
+  if (normalized.includes("novacik")) return "N";
+  return null;
+}

@@ -23,6 +23,7 @@ import { UnfilledReminder } from "@/components/UnfilledReminder";
 import { RefereeCategoriesManager } from "@/components/RefereeCategoriesManager";
 import { CategoryAdminsManager } from "@/components/CategoryAdminsManager";
 import { AddRefereeForm } from "@/components/AddRefereeForm";
+import { ImportRefereesForm } from "@/components/ImportRefereesForm";
 import {
   CancellationRequests,
   type CancellationRequestItem,
@@ -424,6 +425,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
         {isAdminSection ? (
           <>
             <AddRefereeForm />
+            <ImportRefereesForm />
             <RefereeCategoriesManager
               referees={allReferees}
               initialCategories={allRefereeCategories}

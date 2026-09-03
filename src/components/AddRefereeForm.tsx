@@ -10,6 +10,7 @@ export function AddRefereeForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
   const [license, setLicense] = useState<LicenseLevel | "">("");
   const [participate, setParticipate] = useState<Set<Category>>(
     new Set(),
@@ -34,6 +35,7 @@ export function AddRefereeForm() {
     setFullName("");
     setEmail("");
     setPhone("");
+    setAddress("");
     setLicense("");
     setParticipate(new Set(["celostatny"]));
     setAdminFor(new Set());
@@ -51,6 +53,7 @@ export function AddRefereeForm() {
         fullName,
         email,
         phone: phone || null,
+        address: address || null,
         license: license || null,
         participateCategories: Array.from(participate),
         adminCategories: Array.from(adminFor),
@@ -145,6 +148,19 @@ export function AddRefereeForm() {
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-600 dark:text-zinc-300">
+              Adresa (voliteľné)
+            </label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Ulica 12, 811 01 Bratislava"
               className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
             />
           </div>

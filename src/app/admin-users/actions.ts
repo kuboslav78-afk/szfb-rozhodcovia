@@ -58,17 +58,20 @@ function serviceClient() {
   });
 }
 
-export async function createReferee(input: {
+type CreateRefereeInput = {
   fullName: string;
   email: string;
   phone: string | null;
+  address: string | null;
   license: LicenseLevel | null;
   participateCategories: Category[];
   adminCategories: Category[];
-}) {
-  await requireSuperAdmin();
+};
 
-  const admin = serviceClient();
+async function createOneReferee(
+  admin: ReturnType<typeof serviceClient>,
+  input: CreateRefereeInput,
+) {
   const password = defaultPassword(input.fullName);
 
   const { data, error } = await admin.auth.admin.createUser({
@@ -81,11 +84,12 @@ export async function createReferee(input: {
   if (error) throw new Error(error.message);
   if (!data.user) throw new Error("Účet sa nepodarilo vytvoriť.");
 
-  if (input.phone || input.license) {
+  if (input.phone || input.address || input.license) {
     await admin
       .from("referees")
       .update({
         ...(input.phone ? { phone: input.phone } : {}),
+        ...(input.address ? { address: input.address } : {}),
         ...(input.license ? { license_level: input.license } : {}),
       })
       .eq("id", data.user.id);
@@ -103,9 +107,66 @@ export async function createReferee(input: {
       .upsert({ referee_id: data.user.id, category }, { onConflict: "referee_id,category" });
   }
 
-  revalidatePath("/");
-
   return { password };
+}
+
+export async function createReferee(input: CreateRefereeInput) {
+  await requireSuperAdmin();
+  const admin = serviceClient();
+  const result = await createOneReferee(admin, input);
+  revalidatePath("/");
+  return result;
+}
+
+export type BulkRefereeRow = {
+  fullName: string;
+  email: string;
+  phone: string | null;
+  address: string | null;
+  license: LicenseLevel | null;
+};
+
+export type BulkImportResult = {
+  fullName: string;
+  email: string;
+  success: boolean;
+  password?: string;
+  error?: string;
+};
+
+/** Hromadné vytvorenie účtov z importovanej tabuľky — pokračuje aj po chybe na jednotlivom riadku. */
+export async function createRefereesBulk(
+  rows: BulkRefereeRow[],
+  category: Category | null,
+): Promise<BulkImportResult[]> {
+  await requireSuperAdmin();
+  const admin = serviceClient();
+
+  const results: BulkImportResult[] = [];
+  for (const row of rows) {
+    try {
+      const { password } = await createOneReferee(admin, {
+        fullName: row.fullName,
+        email: row.email,
+        phone: row.phone,
+        address: row.address,
+        license: row.license,
+        participateCategories: category ? [category] : [],
+        adminCategories: [],
+      });
+      results.push({ fullName: row.fullName, email: row.email, success: true, password });
+    } catch (err) {
+      results.push({
+        fullName: row.fullName,
+        email: row.email,
+        success: false,
+        error: err instanceof Error ? err.message : "Neznáma chyba.",
+      });
+    }
+  }
+
+  revalidatePath("/");
+  return results;
 }
 
 export async function updateRefereeName(refereeId: string, fullName: string) {
