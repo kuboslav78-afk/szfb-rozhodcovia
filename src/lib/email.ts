@@ -69,6 +69,30 @@ export async function sendBatchEmails(emails: BatchEmailInput, replyTo = DEFAULT
   return { sent, failed };
 }
 
+/** Slovenčina rozlišuje oslovenie podľa rodu; priezvisko na "-ová" je bežný signál ženského rodu. */
+function formalGreeting(fullName: string) {
+  const lastName = fullName.trim().split(/\s+/).pop() ?? "";
+  const isFemale = /ová$/i.test(lastName);
+  return isFemale ? "Vážená rozhodkyňa SZFB," : "Vážený rozhodca SZFB,";
+}
+
+function signatureBlock() {
+  return `
+    <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #e4e4e7; font-size: 14px; line-height: 1.6; color: #18181b;">
+      <p style="margin: 0 0 16px 0;">S pozdravom</p>
+      <p style="margin: 0; font-weight: 700;">Jakub Kučera</p>
+      <p style="margin: 0; font-style: italic; color: #52525b;">predseda Komisie rozhodcov a observerov</p>
+      <p style="margin: 12px 0 0 0; color: #52525b;">Slovenský zväz florbalu</p>
+      <p style="margin: 0; color: #52525b;">Olympijské námestie 14290/1, 832 80 Bratislava, Slovenská republika</p>
+      <p style="margin: 4px 0 0 0;">
+        <a href="tel:+421902095619" style="color: #2e3192; text-decoration: none;">+421 902 095 619</a>
+        <span style="color: #a1a1aa;"> | </span>
+        <a href="https://www.szfb.sk" style="color: #2e3192; text-decoration: none;">www.szfb.sk</a>
+      </p>
+    </div>
+  `;
+}
+
 function baseWrapper(bodyHtml: string) {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #18181b;">
@@ -78,6 +102,7 @@ function baseWrapper(bodyHtml: string) {
       <div style="height: 4px; background: #ed1c24;"></div>
       <div style="padding: 24px;">
         ${bodyHtml}
+        ${signatureBlock()}
       </div>
       <div style="padding: 16px 24px; color: #a1a1aa; font-size: 12px; border-top: 1px solid #e4e4e7;">
         Slovenský zväz florbalu · Portál rozhodcov SZFB
@@ -112,7 +137,7 @@ export function nominationSentEmailHtml(params: {
       : "prišla ti nová nominácia na zápas — potvrď ju prosím čo najskôr:";
 
   return baseWrapper(`
-    <p style="font-size: 15px; line-height: 1.5;">Ahoj ${refereeName},</p>
+    <p style="font-size: 15px; line-height: 1.5;">${formalGreeting(refereeName)}</p>
     <p style="font-size: 15px; line-height: 1.5;">${intro}</p>
     <div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin: 16px 0;">
       <p style="margin: 0 0 4px 0; font-weight: 700; font-size: 15px;">${teamHome} vs ${teamAway}</p>
@@ -130,7 +155,7 @@ export function bulkAnnouncementEmailHtml(params: { refereeName: string; bodyTex
     .join("");
 
   return baseWrapper(`
-    <p style="font-size: 15px; line-height: 1.5;">Ahoj ${params.refereeName},</p>
+    <p style="font-size: 15px; line-height: 1.5;">${formalGreeting(params.refereeName)}</p>
     ${paragraphs}
   `);
 }
