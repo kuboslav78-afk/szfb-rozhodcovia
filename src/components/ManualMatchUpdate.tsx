@@ -1,11 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { findMatchesByNumber, manualUpdateMatch, type FoundMatch } from "@/app/nominations/actions";
+import {
+  findMatchesByNumber,
+  manualUpdateMatch,
+  createManualMatch,
+  type FoundMatch,
+} from "@/app/nominations/actions";
 import { CATEGORY_LABELS, type Category } from "@/lib/categories";
 
-export function ManualMatchUpdate() {
-  const [collapsed, setCollapsed] = useState(true);
+type Mode = "edit" | "create";
+
+function EditMatch() {
   const [matchNumberInput, setMatchNumberInput] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -81,45 +87,9 @@ export function ManualMatchUpdate() {
     }
   }
 
-  if (collapsed) {
-    return (
-      <div className="mb-6 flex items-center justify-between rounded-xl border border-zinc-200 px-5 py-4 dark:border-zinc-800">
-        <div>
-          <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Ručná úprava zápasu</h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            Pre zmeny hlásené v ISF ešte pred prejavením na verejnom webe szfb.sk.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setCollapsed(false)}
-          className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-        >
-          Otvoriť
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className="mb-6 rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Ručná úprava zápasu</h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            Pre zmeny hlásené v ISF ešte pred prejavením na verejnom webe szfb.sk.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setCollapsed(true)}
-          className="shrink-0 rounded-lg bg-brand-indigo px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-indigo-dark"
-        >
-          Hotovo
-        </button>
-      </div>
-
-      <div className="mt-4 flex gap-2">
+    <div>
+      <div className="flex gap-2">
         <input
           type="text"
           inputMode="numeric"
@@ -232,6 +202,212 @@ export function ManualMatchUpdate() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CreateMatch({ category }: { category: Category }) {
+  const [league, setLeague] = useState("");
+  const [teamHome, setTeamHome] = useState("");
+  const [teamAway, setTeamAway] = useState("");
+  const [matchNumber, setMatchNumber] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [venue, setVenue] = useState("");
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  function resetForm() {
+    setLeague("");
+    setTeamHome("");
+    setTeamAway("");
+    setMatchNumber("");
+    setDate("");
+    setTime("");
+    setVenue("");
+  }
+
+  async function handleCreate() {
+    setError(null);
+    setSaved(false);
+
+    if (!league.trim() || !teamHome.trim() || !teamAway.trim() || !date) {
+      setError("Vyplň ligu, oba tímy a dátum.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await createManualMatch({
+        category,
+        league: league.trim(),
+        teamHome: teamHome.trim(),
+        teamAway: teamAway.trim(),
+        matchDate: date,
+        matchTime: time ? `${time}:00` : null,
+        venue: venue.trim() || null,
+        matchNumber: matchNumber.trim() ? Number(matchNumber.trim()) : null,
+      });
+      setSaved(true);
+      resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Pridanie zlyhalo.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="mb-3 text-xs text-zinc-500">
+        Pre zápasy, ktoré neprídu cez szfb.sk import (napr. reprezentačné priateľáky nahlásené len
+        e-mailom). Pridá sa do regiónu <strong>{CATEGORY_LABELS[category]}</strong>.
+      </p>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Liga / označenie</label>
+          <input
+            type="text"
+            value={league}
+            onChange={(e) => setLeague(e.target.value)}
+            placeholder="napr. REPRE"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Číslo zápasu (voliteľné)</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={matchNumber}
+            onChange={(e) => setMatchNumber(e.target.value)}
+            className="w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Domáci tím</label>
+          <input
+            type="text"
+            value={teamHome}
+            onChange={(e) => setTeamHome(e.target.value)}
+            className="w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Hosťujúci tím</label>
+          <input
+            type="text"
+            value={teamAway}
+            onChange={(e) => setTeamAway(e.target.value)}
+            className="w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Dátum</label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Čas</label>
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            className="w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Hala</label>
+          <input
+            type="text"
+            value={venue}
+            onChange={(e) => setVenue(e.target.value)}
+            className="w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          />
+        </div>
+      </div>
+
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {saved && <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">Zápas bol pridaný.</p>}
+
+      <button
+        type="button"
+        disabled={saving}
+        onClick={handleCreate}
+        className="mt-3 rounded-lg bg-brand-indigo px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-indigo-dark disabled:opacity-60"
+      >
+        {saving ? "Pridávam…" : "Pridať zápas"}
+      </button>
+    </div>
+  );
+}
+
+export function ManualMatchUpdate({ category }: { category: Category }) {
+  const [collapsed, setCollapsed] = useState(true);
+  const [mode, setMode] = useState<Mode>("edit");
+
+  if (collapsed) {
+    return (
+      <div className="mb-6 flex items-center justify-between rounded-xl border border-zinc-200 px-5 py-4 dark:border-zinc-800">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Ručná správa zápasov</h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Úprava termínu z ISF, alebo pridanie zápasu, ktorý nejde cez import.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          Otvoriť
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-6 rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
+      <div className="flex items-start justify-between gap-4">
+        <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Ručná správa zápasov</h2>
+        <button
+          type="button"
+          onClick={() => setCollapsed(true)}
+          className="shrink-0 rounded-lg bg-brand-indigo px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-indigo-dark"
+        >
+          Hotovo
+        </button>
+      </div>
+
+      <div className="mt-4 mb-4 flex flex-wrap gap-1 rounded-lg border border-zinc-200 p-1 text-sm dark:border-zinc-800">
+        <button
+          type="button"
+          onClick={() => setMode("edit")}
+          className={`rounded-md px-3 py-1.5 font-medium transition ${
+            mode === "edit" ? "bg-brand-indigo text-white" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+          }`}
+        >
+          Upraviť existujúci
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("create")}
+          className={`rounded-md px-3 py-1.5 font-medium transition ${
+            mode === "create" ? "bg-brand-indigo text-white" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+          }`}
+        >
+          Pridať nový zápas
+        </button>
+      </div>
+
+      {mode === "edit" ? <EditMatch /> : <CreateMatch category={category} />}
     </div>
   );
 }

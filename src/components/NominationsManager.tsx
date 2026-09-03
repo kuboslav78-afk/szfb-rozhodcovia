@@ -11,6 +11,7 @@ import {
 import type { AvailabilityStatus } from "@/app/availability/actions";
 import type { CompetitionConfig } from "@/lib/szfb-scraper";
 import type { LicenseLevel } from "@/lib/licenses";
+import type { Category } from "@/lib/categories";
 import { RefereePickerModal, type PickerReferee } from "@/components/RefereePickerModal";
 import { ManualMatchUpdate } from "@/components/ManualMatchUpdate";
 
@@ -45,6 +46,7 @@ type Match = {
 };
 
 type Props = {
+  category: Category;
   competitions: CompetitionConfig[];
   initialMatches: Match[];
   referees: Referee[];
@@ -439,7 +441,14 @@ function MatchRow({
   );
 }
 
-export function NominationsManager({ competitions, initialMatches, referees, availability, readOnly }: Props) {
+export function NominationsManager({
+  category,
+  competitions,
+  initialMatches,
+  referees,
+  availability,
+  readOnly,
+}: Props) {
   const [leagueFilter, setLeagueFilter] = useState<string>("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -474,7 +483,7 @@ export function NominationsManager({ competitions, initialMatches, referees, ava
       {!readOnly && (
         <>
           <ImportPanel competitions={competitions} />
-          <ManualMatchUpdate />
+          <ManualMatchUpdate category={category} />
         </>
       )}
 

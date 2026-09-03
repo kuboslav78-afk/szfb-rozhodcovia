@@ -165,6 +165,7 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
           <NominationCategoryTabs active={category} allowed={allowedCategories} />
           <NominationsManager
             key={category}
+            category={category}
             competitions={competitions}
             readOnly={readOnly}
             initialMatches={matches ?? []}

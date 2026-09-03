@@ -163,6 +163,47 @@ export async function findMatchesByNumber(matchNumber: number): Promise<FoundMat
   return data ?? [];
 }
 
+export type ManualMatchCreateInput = {
+  category: string;
+  league: string;
+  teamHome: string;
+  teamAway: string;
+  matchDate: string;
+  matchTime: string | null;
+  venue: string | null;
+  matchNumber: number | null;
+};
+
+/** Ručné pridanie zápasu, ktorý nejde cez szfb.sk import (napr. reprezentačné priateľáky, žiadosť len e-mailom). */
+export async function createManualMatch(input: ManualMatchCreateInput) {
+  await requireSuperAdmin();
+
+  if (!input.league.trim() || !input.teamHome.trim() || !input.teamAway.trim() || !input.matchDate) {
+    throw new Error("Vyplň ligu, oba tímy a dátum zápasu.");
+  }
+
+  const supabase = await createClient();
+  const externalMatchId = `manual-${crypto.randomUUID()}`;
+
+  const { error } = await supabase.from("matches").insert({
+    category: input.category,
+    league: input.league.trim(),
+    external_competition_id: "manual",
+    external_match_id: externalMatchId,
+    match_number: input.matchNumber,
+    round: null,
+    team_home: input.teamHome.trim(),
+    team_away: input.teamAway.trim(),
+    match_date: input.matchDate,
+    match_time: input.matchTime,
+    venue: input.venue,
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/nominations");
+}
+
 export type ManualMatchUpdateInput = {
   matchDate: string;
   matchTime: string | null;
