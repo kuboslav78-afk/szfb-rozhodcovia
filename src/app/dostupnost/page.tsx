@@ -28,6 +28,8 @@ import { UnfilledReminder } from "@/components/UnfilledReminder";
 import { RefereeCategoriesManager } from "@/components/RefereeCategoriesManager";
 import { CategoryAdminsManager } from "@/components/CategoryAdminsManager";
 import { RefereeDataTable, type RefereeDataRow } from "@/components/RefereeDataTable";
+import { RatesManager } from "@/components/RatesManager";
+import { getLeagueRates, getMinHourlyWage, DEFAULT_MIN_HOURLY_WAGE, type LeagueRate } from "@/lib/rates";
 import { AddRefereeForm } from "@/components/AddRefereeForm";
 import { ImportRefereesForm } from "@/components/ImportRefereesForm";
 import {
@@ -174,6 +176,8 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
   let allReferees: RefereeRow[] = [];
   let allRefereeCategories: Record<string, Category[]> = {};
   let refereeData: RefereeDataRow[] = [];
+  let leagueRates: LeagueRate[] = [];
+  let minHourlyWage = DEFAULT_MIN_HOURLY_WAGE;
   let allCategoryAccess: Record<string, Partial<Record<Category, CategoryAccessLevel>>> = {};
 
   if (canSeeAllCategories && (adminView || isAdminSection)) {
@@ -215,6 +219,11 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
       .eq("active", true)
       .order("full_name");
     refereeData = (data ?? []) as RefereeDataRow[];
+
+    [leagueRates, minHourlyWage] = await Promise.all([
+      getLeagueRates(supabase),
+      getMinHourlyWage(supabase),
+    ]);
   }
 
   if (adminView) {
@@ -494,6 +503,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
               initialCategories={allRefereeCategories}
             />
             <RefereeDataTable referees={refereeData} categories={allRefereeCategories} />
+            <RatesManager rates={leagueRates} minHourlyWage={minHourlyWage} />
             <CategoryAdminsManager
               referees={allReferees}
               initialAccess={allCategoryAccess}
