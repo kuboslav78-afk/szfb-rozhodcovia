@@ -27,6 +27,7 @@ import { RegionSwitcher } from "@/components/RegionSwitcher";
 import { UnfilledReminder } from "@/components/UnfilledReminder";
 import { RefereeCategoriesManager } from "@/components/RefereeCategoriesManager";
 import { CategoryAdminsManager } from "@/components/CategoryAdminsManager";
+import { RefereeDataTable, type RefereeDataRow } from "@/components/RefereeDataTable";
 import { AddRefereeForm } from "@/components/AddRefereeForm";
 import { ImportRefereesForm } from "@/components/ImportRefereesForm";
 import {
@@ -150,6 +151,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
   let cancellationRequests: CancellationRequestItem[] = [];
   let allReferees: RefereeRow[] = [];
   let allRefereeCategories: Record<string, Category[]> = {};
+  let refereeData: RefereeDataRow[] = [];
   let allCategoryAccess: Record<string, Partial<Record<Category, CategoryAccessLevel>>> = {};
 
   if (canSeeAllCategories && (adminView || isAdminSection)) {
@@ -179,6 +181,18 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
       allCategoryAccess[id] ??= {};
       allCategoryAccess[id][row.category as Category] = row.can_edit ? "edit" : "view";
     }
+  }
+
+  // Profilové údaje ťaháme len v Administrácii — v kalendárovom prehľade sú zbytočné.
+  if (isAdminSection) {
+    const { data } = await supabase
+      .from("referees")
+      .select(
+        "id, full_name, email, phone, address, date_of_birth, birth_number, bank_account, jersey_size, shorts_size, socks_size, license_level, home_region, photo_path, criminal_record_uploaded_at",
+      )
+      .eq("active", true)
+      .order("full_name");
+    refereeData = (data ?? []) as RefereeDataRow[];
   }
 
   if (adminView) {
@@ -457,6 +471,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
               referees={allReferees}
               initialCategories={allRefereeCategories}
             />
+            <RefereeDataTable referees={refereeData} categories={allRefereeCategories} />
             <CategoryAdminsManager
               referees={allReferees}
               initialAccess={allCategoryAccess}
