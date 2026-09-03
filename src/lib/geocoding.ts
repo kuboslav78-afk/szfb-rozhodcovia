@@ -14,9 +14,12 @@ function sleep(ms: number) {
 
 type GeocodeResult = { coords: Coordinates } | { coords: null; reason: string };
 
-/** Skúsi geokódovať adresu haly cez Nominatim (OpenStreetMap) — bez API kľúča, ale s rate limitom. */
-async function geocodeVenue(venue: string): Promise<GeocodeResult> {
-  const query = `${venue}, Slovensko`;
+/**
+ * Geokóduje textový dopyt cez Nominatim (OpenStreetMap) — bez API kľúča, ale s rate
+ * limitom. Plné názvy hál (napr. s dodatkom "kategória A+") sa väčšinou nenájdu —
+ * spoľahlivo funguje len samotný názov mesta/obce.
+ */
+async function geocodeQuery(query: string): Promise<GeocodeResult> {
   const url = `${NOMINATIM_URL}?format=json&limit=1&countrycodes=sk&q=${encodeURIComponent(query)}`;
 
   try {
@@ -36,12 +39,8 @@ async function geocodeVenue(venue: string): Promise<GeocodeResult> {
   }
 }
 
-/**
- * Geokóduje dávku hál, ktoré ešte nemajú súradnice v cache (max `limit` na jedno
- * volanie — Nominatim dovoľuje len 1 req/s, takže veľká dávka by presiahla
- * limity serverless funkcie). Volaj opakovane, kým `remaining` nie je 0.
- */
-export async function geocodeVenuesBatch(limit = 8) {
+/** Distinct haly z matches, ktoré ešte nemajú súradnice v cache. */
+export async function getVenuesWithoutCoordinates(): Promise<string[]> {
   const supabase = await createClient();
 
   const { data: matchVenues } = await supabase
@@ -56,15 +55,28 @@ export async function geocodeVenuesBatch(limit = 8) {
   const { data: cached } = await supabase.from("venue_coordinates").select("venue");
   const cachedSet = new Set((cached ?? []).map((c) => c.venue));
 
-  const missing = distinctVenues.filter((v) => !cachedSet.has(v));
-  const batch = missing.slice(0, limit);
+  return distinctVenues.filter((v) => !cachedSet.has(v)).sort();
+}
+
+/**
+ * Geokóduje dávku hál podľa mesta zadaného adminom (nie podľa celého názvu haly —
+ * to Nominatim väčšinou nevie nájsť). Súradnice sa uložia pod pôvodný text haly,
+ * nech ich vie neskôr nájsť výpočet kolízií. Max `limit` na jedno volanie kvôli
+ * rate limitu Nominatim (1 req/s) a limitu behu serverless funkcie.
+ */
+export async function geocodeVenuesByCity(
+  entries: { venue: string; city: string }[],
+  limit = 8,
+) {
+  const supabase = await createClient();
+  const batch = entries.filter((e) => e.city.trim()).slice(0, limit);
 
   let geocoded = 0;
   let failed = 0;
   const failureSamples: string[] = [];
 
-  for (const venue of batch) {
-    const result = await geocodeVenue(venue);
+  for (const { venue, city } of batch) {
+    const result = await geocodeQuery(`${city.trim()}, Slovensko`);
     if (result.coords) {
       const { error } = await supabase
         .from("venue_coordinates")
@@ -77,7 +89,7 @@ export async function geocodeVenuesBatch(limit = 8) {
       }
     } else {
       failed++;
-      failureSamples.push(`${venue}: ${result.reason}`);
+      failureSamples.push(`${venue} (${city}): ${result.reason}`);
     }
     await sleep(NOMINATIM_DELAY_MS);
   }
@@ -86,8 +98,6 @@ export async function geocodeVenuesBatch(limit = 8) {
     processed: batch.length,
     geocoded,
     failed,
-    remaining: missing.length - batch.length,
-    totalVenues: distinctVenues.length,
     failureSamples: failureSamples.slice(0, 3),
   };
 }

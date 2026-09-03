@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { COMPETITIONS, scrapeCompetition } from "@/lib/szfb-scraper";
 import { sendEmail, sendBatchEmails, nominationSentEmailHtml } from "@/lib/email";
-import { geocodeVenuesBatch } from "@/lib/geocoding";
+import { getVenuesWithoutCoordinates, geocodeVenuesByCity } from "@/lib/geocoding";
 import { CATEGORIES, type Category } from "@/lib/categories";
 
 type NominationAdmin = {
@@ -518,12 +518,18 @@ export async function setMatchRefereeStatus(
   }
 }
 
-/**
- * Geokóduje ďalšiu dávku hál bez súradníc (Nominatim dovoľuje len 1 req/s,
- * takže sa to volá opakovane z klienta, kým `remaining` neklesne na 0).
- * Súradnice sa používajú na odhad, či rozhodca stihne dva zápasy za deň.
- */
-export async function geocodeVenues() {
+/** Haly bez súradníc — admin k nim priradí mesto pre geokódovanie. */
+export async function listVenuesWithoutCoordinates() {
   await requireSuperAdmin();
-  return geocodeVenuesBatch();
+  return getVenuesWithoutCoordinates();
+}
+
+/**
+ * Geokóduje haly podľa miest, ktoré admin ručne priradil (celé názvy hál
+ * Nominatim väčšinou nevie nájsť). Volá sa opakovane z klienta po dávkach
+ * kvôli rate limitu (1 req/s).
+ */
+export async function geocodeVenues(entries: { venue: string; city: string }[]) {
+  await requireSuperAdmin();
+  return geocodeVenuesByCity(entries);
 }
