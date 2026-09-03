@@ -4,6 +4,7 @@ import { useState } from "react";
 import * as XLSX from "xlsx";
 import { CATEGORY_LABELS, type Category } from "@/lib/categories";
 import type { LicenseLevel } from "@/lib/licenses";
+import { CONTRACT_LABELS, type ContractType } from "@/lib/contracts";
 import { PROFILE_FIELDS, filledProfileFieldCount } from "@/lib/profile-completeness";
 
 export type RefereeDataRow = {
@@ -22,6 +23,8 @@ export type RefereeDataRow = {
   home_region: Category | null;
   photo_path: string | null;
   criminal_record_uploaded_at: string | null;
+  contract_type: ContractType | null;
+  contract_number: string | null;
 };
 
 type Props = {
@@ -67,6 +70,8 @@ function exportRow(referee: RefereeDataRow, refereeCategories: Category[]) {
     Dres: referee.jersey_size ?? "",
     Trenky: referee.shorts_size ?? "",
     "Ponožky": referee.socks_size ?? "",
+    Zmluva: referee.contract_type ? CONTRACT_LABELS[referee.contract_type] : "",
+    "Číslo zmluvy": referee.contract_number ?? "",
     Licencia: referee.license_level ?? "",
     "Domáci región": referee.home_region ? CATEGORY_LABELS[referee.home_region] : "",
     "Kategórie": refereeCategories.map((c) => CATEGORY_LABELS[c]).join(", "),
@@ -194,6 +199,8 @@ export function RefereeDataTable({ referees, categories }: Props) {
                 "Rodné číslo",
                 "IBAN",
                 "Dres / trenky / ponožky",
+                "Zmluva",
+                "Č. zmluvy",
                 "Lic.",
                 "Domáci región",
                 "Kategórie",
@@ -260,6 +267,14 @@ export function RefereeDataTable({ referees, categories }: Props) {
                     ) : (
                       <Cell value={null} />
                     )}
+                  </td>
+                  <td className="px-2 py-2 text-zinc-600 dark:text-zinc-300">
+                    <Cell
+                      value={referee.contract_type ? CONTRACT_LABELS[referee.contract_type] : null}
+                    />
+                  </td>
+                  <td className="px-2 py-2 text-zinc-600 dark:text-zinc-300">
+                    <Cell value={referee.contract_number} />
                   </td>
                   <td className="px-2 py-2 text-center text-zinc-600 dark:text-zinc-300">
                     <Cell value={referee.license_level} />

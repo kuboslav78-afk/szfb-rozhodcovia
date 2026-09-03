@@ -38,6 +38,7 @@ import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
 import { getCategoryAccess } from "@/lib/category-access";
 import { fetchAllRows } from "@/lib/paginate";
+import type { ContractType } from "@/lib/contracts";
 import type { CategoryAccessLevel } from "@/app/admin-users/actions";
 import type { AvailabilityStatus } from "@/app/availability/actions";
 
@@ -163,6 +164,8 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
     license_level: LicenseLevel | null;
     home_region: Category | null;
     role: "admin" | "referee" | "viewer";
+    contract_type: ContractType | null;
+    contract_number: string | null;
   };
   let adminReferees: RefereeRow[] = [];
   let adminCelostatnySet = new Set<string>();
@@ -178,7 +181,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
       await Promise.all([
         supabase
           .from("referees")
-          .select("id, full_name, license_level, home_region, role")
+          .select("id, full_name, license_level, home_region, role, contract_type, contract_number")
           .eq("active", true)
           .order("full_name"),
         supabase.from("referee_categories").select("referee_id, category"),
@@ -207,7 +210,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
     const { data } = await supabase
       .from("referees")
       .select(
-        "id, full_name, email, phone, address, date_of_birth, birth_number, bank_account, jersey_size, shorts_size, socks_size, license_level, home_region, photo_path, criminal_record_uploaded_at",
+        "id, full_name, email, phone, address, date_of_birth, birth_number, bank_account, jersey_size, shorts_size, socks_size, license_level, home_region, photo_path, criminal_record_uploaded_at, contract_type, contract_number",
       )
       .eq("active", true)
       .order("full_name");
@@ -261,7 +264,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
     } else if (categoryRefereeIds.size > 0) {
       const { data: catReferees } = await supabase
         .from("referees")
-        .select("id, full_name, license_level, home_region, role")
+        .select("id, full_name, license_level, home_region, role, contract_type, contract_number")
         .in("id", Array.from(categoryRefereeIds))
         .eq("active", true)
         .order("full_name");

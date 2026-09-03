@@ -11,6 +11,7 @@ import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin } from "@/lib/view-mode";
 import { LICENSE_LABELS, isLicenseLevel } from "@/lib/licenses";
 import { CATEGORY_LABELS, isCategory } from "@/lib/categories";
+import { CONTRACT_LABELS, isContractType } from "@/lib/contracts";
 
 export default async function ProfilPage() {
   const referee = await requireUser();
@@ -22,7 +23,7 @@ export default async function ProfilPage() {
   const { data: refereeRow } = await supabase
     .from("referees")
     .select(
-      "phone, license_level, home_region, address, date_of_birth, birth_number, bank_account, jersey_size, shorts_size, socks_size, photo_path, criminal_record_path, criminal_record_uploaded_at",
+      "phone, license_level, home_region, address, date_of_birth, birth_number, bank_account, jersey_size, shorts_size, socks_size, photo_path, criminal_record_path, criminal_record_uploaded_at, contract_type, contract_number",
     )
     .eq("id", referee.id)
     .maybeSingle();
@@ -38,6 +39,9 @@ export default async function ProfilPage() {
 
   const licenseLevel = refereeRow?.license_level;
   const licenseLabel = licenseLevel && isLicenseLevel(licenseLevel) ? LICENSE_LABELS[licenseLevel] : null;
+  const contractType = refereeRow?.contract_type;
+  const contractLabel =
+    contractType && isContractType(contractType) ? CONTRACT_LABELS[contractType] : null;
   const homeRegion = refereeRow?.home_region;
   const homeRegionLabel = homeRegion && isCategory(homeRegion) ? CATEGORY_LABELS[homeRegion] : null;
 
@@ -94,6 +98,14 @@ export default async function ProfilPage() {
               <div className="flex justify-between gap-4">
                 <dt className="text-zinc-500">Domáci región</dt>
                 <dd className="font-medium text-zinc-800 dark:text-zinc-200">{homeRegionLabel ?? "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-zinc-500">Zmluva</dt>
+                <dd className="font-medium text-zinc-800 dark:text-zinc-200">
+                  {contractLabel
+                    ? `${contractLabel}${refereeRow?.contract_number ? ` · č. ${refereeRow.contract_number}` : ""}`
+                    : "—"}
+                </dd>
               </div>
             </dl>
           </div>

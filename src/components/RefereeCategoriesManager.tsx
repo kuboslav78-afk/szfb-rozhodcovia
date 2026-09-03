@@ -8,7 +8,13 @@ import {
   updateRefereeName,
   updateRefereeLicense,
   adminSetHomeRegion,
+  updateRefereeContract,
 } from "@/app/admin-users/actions";
+import {
+  CONTRACT_LABELS,
+  CONTRACT_TYPES,
+  type ContractType,
+} from "@/lib/contracts";
 import { LicenseBadge } from "@/components/LicenseBadge";
 
 type Referee = {
@@ -16,6 +22,8 @@ type Referee = {
   full_name: string;
   license_level: LicenseLevel | null;
   home_region: Category | null;
+  contract_type: ContractType | null;
+  contract_number: string | null;
 };
 
 type Props = {
@@ -47,6 +55,51 @@ function NameCell({ referee }: { referee: Referee }) {
       onBlur={handleBlur}
       className="w-full min-w-[140px] rounded-md border border-transparent bg-transparent px-1.5 py-1 font-medium text-zinc-800 outline-none transition hover:border-zinc-200 focus:border-brand-indigo focus:bg-white dark:text-zinc-200 dark:hover:border-zinc-700 dark:focus:bg-zinc-900"
     />
+  );
+}
+
+/** Typ zmluvy a jej číslo idú spolu — číslo bez typu nedáva zmysel. */
+function ContractCell({ referee }: { referee: Referee }) {
+  const [type, setType] = useState<ContractType | "">(referee.contract_type ?? "");
+  const [number, setNumber] = useState(referee.contract_number ?? "");
+  const [, startTransition] = useTransition();
+
+  function save(nextType: ContractType | "", nextNumber: string) {
+    startTransition(async () => {
+      await updateRefereeContract(referee.id, nextType || null, nextNumber || null);
+    });
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        value={type}
+        onChange={(e) => {
+          const next = e.target.value as ContractType | "";
+          setType(next);
+          save(next, number);
+        }}
+        className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-xs text-zinc-700 outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+      >
+        <option value="">—</option>
+        {CONTRACT_TYPES.map((contract) => (
+          <option key={contract} value={contract}>
+            {CONTRACT_LABELS[contract]}
+          </option>
+        ))}
+      </select>
+      <input
+        type="text"
+        value={number}
+        onChange={(e) => setNumber(e.target.value)}
+        onBlur={() => {
+          if ((referee.contract_number ?? "") !== number) save(type, number);
+        }}
+        placeholder="č. zmluvy"
+        title="Číslo zmluvy — prideľuje ekonomický úsek, ide do hromadného príkazu ako variabilný symbol"
+        className="w-24 rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-xs text-zinc-700 outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+      />
+    </div>
   );
 }
 
@@ -217,6 +270,9 @@ export function RefereeCategoriesManager({
               <th className="px-2 py-2 text-center text-xs font-medium text-zinc-400">
                 Domáci región
               </th>
+              <th className="px-2 py-2 text-center text-xs font-medium text-zinc-400">
+                Zmluva
+              </th>
               {CATEGORIES.map((category) => (
                 <th
                   key={category}
@@ -247,6 +303,9 @@ export function RefereeCategoriesManager({
                   </td>
                   <td className="px-2 py-2 text-center">
                     <HomeRegionCell referee={referee} />
+                  </td>
+                  <td className="px-2 py-2">
+                    <ContractCell referee={referee} />
                   </td>
                   {CATEGORIES.map((category) => (
                     <td key={category} className="px-2 py-2 text-center">

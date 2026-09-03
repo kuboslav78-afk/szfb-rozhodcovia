@@ -5,6 +5,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { isRegion, type Category, type Region } from "@/lib/categories";
 import type { LicenseLevel } from "@/lib/licenses";
+import type { ContractType } from "@/lib/contracts";
 
 function slugify(part: string) {
   return part
@@ -181,6 +182,28 @@ export async function updateRefereeName(refereeId: string, fullName: string) {
   const { error } = await admin
     .from("referees")
     .update({ full_name: trimmed })
+    .eq("id", refereeId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/");
+}
+
+/** Typ zmluvy a jej číslo — číslo prideľuje ekonomický úsek SZFB. */
+export async function updateRefereeContract(
+  refereeId: string,
+  contractType: ContractType | null,
+  contractNumber: string | null,
+) {
+  await requireSuperAdmin();
+
+  const admin = serviceClient();
+  const { error } = await admin
+    .from("referees")
+    .update({
+      contract_type: contractType,
+      contract_number: contractNumber?.trim() || null,
+    })
     .eq("id", refereeId);
 
   if (error) throw new Error(error.message);
