@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import * as XLSX from "xlsx";
 import { CATEGORY_LABELS, type Category } from "@/lib/categories";
 import type { LicenseLevel } from "@/lib/licenses";
 
@@ -64,10 +65,47 @@ function Cell({ value }: { value: string | null | undefined }) {
   return <>{value}</>;
 }
 
+/** Hlavičky exportu — poradie určuje poradie stĺpcov v hárku. */
+function exportRow(referee: RefereeDataRow, refereeCategories: Category[]) {
+  return {
+    Meno: referee.full_name,
+    "E-mail": referee.email,
+    "Telefón": referee.phone ?? "",
+    Adresa: referee.address ?? "",
+    "Dátum narodenia": referee.date_of_birth ?? "",
+    "Rodné číslo": referee.birth_number ?? "",
+    IBAN: referee.bank_account ?? "",
+    Dres: referee.jersey_size ?? "",
+    Trenky: referee.shorts_size ?? "",
+    "Ponožky": referee.socks_size ?? "",
+    Licencia: referee.license_level ?? "",
+    "Domáci región": referee.home_region ? CATEGORY_LABELS[referee.home_region] : "",
+    "Kategórie": refereeCategories.map((c) => CATEGORY_LABELS[c]).join(", "),
+    "Výpis RT nahratý": referee.criminal_record_uploaded_at
+      ? referee.criminal_record_uploaded_at.slice(0, 10)
+      : "",
+    Fotka: referee.photo_path ? "áno" : "",
+    "Vyplnené": `${filledCount(referee)}/${SELF_FILLED_FIELDS.length}`,
+  };
+}
+
 export function RefereeDataTable({ referees, categories }: Props) {
   const [collapsed, setCollapsed] = useState(true);
   const [search, setSearch] = useState("");
   const [onlyIncomplete, setOnlyIncomplete] = useState(false);
+
+  // Exportuje presne to, čo je práve v tabuľke — vrátane filtrov, nech sa dá
+  // vytiahnuť napr. len zoznam tých, ktorým ešte chýbajú údaje do zmluvy.
+  function handleExport(rows: RefereeDataRow[]) {
+    const sheet = XLSX.utils.json_to_sheet(
+      rows.map((r) => exportRow(r, categories[r.id] ?? [])),
+    );
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, "Rozhodcovia");
+
+    const today = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(book, `rozhodcovia-udaje-${today}.xlsx`);
+  }
 
   const query = normalize(search);
   const visible = referees.filter((referee) => {
@@ -143,6 +181,14 @@ export function RefereeDataTable({ referees, categories }: Props) {
         <span className="text-xs text-zinc-400">
           {visible.length} z {referees.length}
         </span>
+        <button
+          type="button"
+          disabled={visible.length === 0}
+          onClick={() => handleExport(visible)}
+          className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          Export do Excelu
+        </button>
       </div>
 
       <div className="mt-4 overflow-x-auto">
