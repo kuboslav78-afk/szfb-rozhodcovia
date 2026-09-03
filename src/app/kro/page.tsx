@@ -91,6 +91,21 @@ export default async function KroPage() {
             </div>
           </div>
 
+          <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+            <div>
+              <div className="font-semibold text-zinc-800 dark:text-zinc-100">Hromadný e-mail rozhodcom</div>
+              <p className="mt-1 text-sm text-zinc-400">
+                Pošli e-mail všetkým, podľa regiónu, alebo len vybraným rozhodcom.
+              </p>
+            </div>
+            <a
+              href="/kro/email"
+              className="shrink-0 rounded-lg bg-brand-indigo px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-indigo-dark"
+            >
+              Napísať e-mail
+            </a>
+          </div>
+
           <div className="rounded-xl border border-dashed border-zinc-200 p-6 dark:border-zinc-800">
             <div className="mb-2 font-semibold text-zinc-800 dark:text-zinc-100">Zasadnutia KRO</div>
             <p className="text-sm text-zinc-400">
