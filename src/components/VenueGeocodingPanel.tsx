@@ -14,6 +14,10 @@ export function VenueGeocodingPanel() {
     setError(null);
     let totalGeocoded = 0;
     let totalFailed = 0;
+    let lastRemaining = Infinity;
+    // Poistka: aj pri opakovanom zlyhávaní (napr. geokódovacia služba nedostupná
+    // z produkčného servera) sa to má niekedy zastaviť, nie bežať donekonečna.
+    let stuckRounds = 0;
 
     try {
       while (true) {
@@ -21,9 +25,21 @@ export function VenueGeocodingPanel() {
         totalGeocoded += result.geocoded;
         totalFailed += result.failed;
         setStatus(
-          `Spracovaných ${totalGeocoded + totalFailed} / ${result.totalVenues} hál — zostáva ${result.remaining}…`,
+          `Spracovaných ${result.geocoded + result.failed} / ${result.totalVenues} hál v tomto behu — zostáva ${result.remaining}…`,
         );
+
+        if (result.remaining >= lastRemaining) {
+          stuckRounds++;
+        } else {
+          stuckRounds = 0;
+        }
+        lastRemaining = result.remaining;
+
         if (result.processed === 0 || result.remaining === 0) break;
+        if (stuckRounds >= 2) {
+          const detail = result.failureSamples?.length ? ` Príčina: ${result.failureSamples.join(" | ")}` : "";
+          throw new Error(`Geokódovanie sa nehýbe (zostáva ${result.remaining}, nič sa neuložilo).${detail}`);
+        }
       }
       setStatus(`Hotovo — geokódovaných ${totalGeocoded}, nenájdených ${totalFailed}.`);
     } catch (err) {

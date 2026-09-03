@@ -12,8 +12,10 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+type GeocodeResult = { coords: Coordinates } | { coords: null; reason: string };
+
 /** Skúsi geokódovať adresu haly cez Nominatim (OpenStreetMap) — bez API kľúča, ale s rate limitom. */
-async function geocodeVenue(venue: string): Promise<Coordinates | null> {
+async function geocodeVenue(venue: string): Promise<GeocodeResult> {
   const query = `${venue}, Slovensko`;
   const url = `${NOMINATIM_URL}?format=json&limit=1&countrycodes=sk&q=${encodeURIComponent(query)}`;
 
@@ -21,13 +23,16 @@ async function geocodeVenue(venue: string): Promise<Coordinates | null> {
     const res = await fetch(url, {
       headers: { "User-Agent": "portal-rozhodcov-szfb/1.0 (kucera@szfb.sk)" },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return { coords: null, reason: `HTTP ${res.status}${body ? ` — ${body.slice(0, 200)}` : ""}` };
+    }
     const results = (await res.json()) as { lat: string; lon: string }[];
     const first = results[0];
-    if (!first) return null;
-    return { lat: parseFloat(first.lat), lng: parseFloat(first.lon) };
-  } catch {
-    return null;
+    if (!first) return { coords: null, reason: "adresa sa nenašla" };
+    return { coords: { lat: parseFloat(first.lat), lng: parseFloat(first.lon) } };
+  } catch (err) {
+    return { coords: null, reason: err instanceof Error ? err.message : "neznáma chyba fetch" };
   }
 }
 
@@ -56,14 +61,23 @@ export async function geocodeVenuesBatch(limit = 8) {
 
   let geocoded = 0;
   let failed = 0;
+  const failureSamples: string[] = [];
 
   for (const venue of batch) {
-    const coords = await geocodeVenue(venue);
-    if (coords) {
-      await supabase.from("venue_coordinates").upsert({ venue, lat: coords.lat, lng: coords.lng });
-      geocoded++;
+    const result = await geocodeVenue(venue);
+    if (result.coords) {
+      const { error } = await supabase
+        .from("venue_coordinates")
+        .upsert({ venue, lat: result.coords.lat, lng: result.coords.lng });
+      if (error) {
+        failed++;
+        failureSamples.push(`${venue}: uloženie zlyhalo — ${error.message}`);
+      } else {
+        geocoded++;
+      }
     } else {
       failed++;
+      failureSamples.push(`${venue}: ${result.reason}`);
     }
     await sleep(NOMINATIM_DELAY_MS);
   }
@@ -74,6 +88,7 @@ export async function geocodeVenuesBatch(limit = 8) {
     failed,
     remaining: missing.length - batch.length,
     totalVenues: distinctVenues.length,
+    failureSamples: failureSamples.slice(0, 3),
   };
 }
 

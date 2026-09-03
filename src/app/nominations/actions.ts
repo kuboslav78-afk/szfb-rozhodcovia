@@ -101,14 +101,12 @@ async function requireSuperAdmin() {
 
 /** Naimportuje/aktualizuje zápasy jednej súťaže zo szfb.sk. */
 export async function importCompetition(competitionId: string) {
-  await requireSuperAdmin();
-
   const competition = COMPETITIONS.find((c) => c.id === competitionId);
   if (!competition) throw new Error("Neznáma súťaž.");
 
-  const scraped = await scrapeCompetition(competition);
+  const { supabase } = await requireCategoryAdmin(competition.category);
 
-  const supabase = await createClient();
+  const scraped = await scrapeCompetition(competition);
 
   let created = 0;
   let updated = 0;
@@ -245,13 +243,13 @@ export type FoundMatch = {
 
 /** Nájde zápasy podľa čísla zápasu (Č.z.) — ručný vstup pre žiadosti z interného ISF, kým sa nedostanú na verejný web. */
 export async function findMatchesByNumber(matchNumber: number): Promise<FoundMatch[]> {
-  await requireSuperAdmin();
+  const { supabase, categories } = await requireNominationAdmin();
 
-  const supabase = await createClient();
   const { data, error } = await supabase
     .from("matches")
     .select("id, match_number, league, category, team_home, team_away, match_date, match_time, venue")
-    .eq("match_number", matchNumber);
+    .eq("match_number", matchNumber)
+    .in("category", categories);
 
   if (error) throw new Error(error.message);
 
@@ -271,13 +269,12 @@ export type ManualMatchCreateInput = {
 
 /** Ručné pridanie zápasu, ktorý nejde cez szfb.sk import (napr. reprezentačné priateľáky, žiadosť len e-mailom). */
 export async function createManualMatch(input: ManualMatchCreateInput) {
-  await requireSuperAdmin();
+  const { supabase } = await requireCategoryAdmin(input.category);
 
   if (!input.league.trim() || !input.teamHome.trim() || !input.teamAway.trim() || !input.matchDate) {
     throw new Error("Vyplň ligu, oba tímy a dátum zápasu.");
   }
 
-  const supabase = await createClient();
   const externalMatchId = `manual-${crypto.randomUUID()}`;
 
   const { error } = await supabase.from("matches").insert({
@@ -307,9 +304,7 @@ export type ManualMatchUpdateInput = {
 
 /** Ručná úprava termínu/haly zápasu (napr. podľa žiadosti z ISF, ešte pred jej prejavením na verejnom webe). */
 export async function manualUpdateMatch(matchId: string, input: ManualMatchUpdateInput) {
-  await requireSuperAdmin();
-
-  const supabase = await createClient();
+  const { supabase } = await requireMatchAdmin(matchId);
 
   const { data: existing, error: fetchError } = await supabase
     .from("matches")
@@ -398,9 +393,8 @@ export async function manualUpdateMatch(matchId: string, input: ManualMatchUpdat
 
 /** Admin potvrdí, že si všimol zmenu termínu (dátumu a/alebo času) — zruší zvýraznenie. */
 export async function acknowledgeTimeChange(matchId: string) {
-  await requireSuperAdmin();
+  const { supabase } = await requireMatchAdmin(matchId);
 
-  const supabase = await createClient();
   const { error } = await supabase
     .from("matches")
     .update({ previous_match_time: null, previous_match_date: null, time_changed_at: null })
@@ -416,9 +410,8 @@ export async function setMatchReferee(
   slot: 1 | 2,
   refereeId: string | null,
 ) {
-  await requireSuperAdmin();
+  const { supabase } = await requireMatchAdmin(matchId);
 
-  const supabase = await createClient();
   const field = slot === 1 ? "referee1_id" : "referee2_id";
   const statusField = slot === 1 ? "referee1_status" : "referee2_status";
 
@@ -464,9 +457,8 @@ export async function setMatchRefereeStatus(
   slot: 1 | 2,
   status: NominationStatus,
 ) {
-  await requireSuperAdmin();
+  const { supabase } = await requireMatchAdmin(matchId);
 
-  const supabase = await createClient();
   const field = slot === 1 ? "referee1_status" : "referee2_status";
 
   const { error } = await supabase

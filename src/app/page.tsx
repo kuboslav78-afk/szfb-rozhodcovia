@@ -6,7 +6,7 @@ import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin } from "@/lib/view-mode";
 import { LICENSE_LABELS, isLicenseLevel } from "@/lib/licenses";
-import { CATEGORY_LABELS } from "@/lib/categories";
+import { CATEGORIES, CATEGORY_LABELS } from "@/lib/categories";
 import { todayDateStr } from "@/lib/dates";
 import type { Category } from "@/lib/categories";
 
@@ -26,12 +26,29 @@ export default async function HomePage() {
 
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
 
-  if (isSuperAdmin) {
+  // Regionálny admin (category_admins) dostane rovnaký nominačný prehľad ako super
+  // admin, len zúžený na kategórie, ktoré spravuje. Keď je super admin prepnutý do
+  // "náhľadu rozhodcu", do tejto vetvy vôbec nespadne — vidí rozhodcovský dashboard.
+  let myAdminCategories: Category[] = [];
+  if (!realIsAdmin && !isViewer) {
+    const { data } = await supabase
+      .from("category_admins")
+      .select("category")
+      .eq("referee_id", referee.id);
+    myAdminCategories = (data ?? []).map((r) => r.category as Category);
+  }
+
+  const isRegionalAdmin = myAdminCategories.length > 0;
+
+  if (isSuperAdmin || isRegionalAdmin) {
+    const adminCategories: Category[] = isSuperAdmin ? [...CATEGORIES] : myAdminCategories;
+
     const [{ data: needsNominationRows }, { count: needsNominationCount }, { count: awaitingResponseCount }] =
       await Promise.all([
         supabase
           .from("matches")
           .select("id, category, league, team_home, team_away, match_date, match_time")
+          .in("category", adminCategories)
           .or("referee1_id.is.null,referee2_id.is.null")
           .gte("match_date", today)
           .order("match_date")
@@ -40,11 +57,13 @@ export default async function HomePage() {
         supabase
           .from("matches")
           .select("id", { count: "exact", head: true })
+          .in("category", adminCategories)
           .or("referee1_id.is.null,referee2_id.is.null")
           .gte("match_date", today),
         supabase
           .from("matches")
           .select("id", { count: "exact", head: true })
+          .in("category", adminCategories)
           .or("referee1_status.eq.sent,referee2_status.eq.sent")
           .gte("match_date", today),
       ]);
@@ -54,7 +73,11 @@ export default async function HomePage() {
         <Sidebar
           current="prehlad"
           refereeName={referee.full_name}
-          roleLabel="Administrátor"
+          roleLabel={
+            isSuperAdmin
+              ? "Administrátor"
+              : `Regionálny admin · ${adminCategories.map((c) => CATEGORY_LABELS[c]).join(", ")}`
+          }
           isAdmin={isSuperAdmin}
           pendingNominations={pendingNominations}
           canToggleView={realIsAdmin}
@@ -62,7 +85,13 @@ export default async function HomePage() {
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
-            <PageTitle className="mb-8">Prehľad</PageTitle>
+            <PageTitle className={isSuperAdmin ? "mb-8" : "mb-1"}>Prehľad</PageTitle>
+            {!isSuperAdmin && (
+              <p className="mb-8 text-sm text-zinc-400">
+                Zobrazené sú len zápasy kategórií, ktoré spravuješ —{" "}
+                {adminCategories.map((c) => CATEGORY_LABELS[c]).join(", ")}.
+              </p>
+            )}
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr] lg:items-start">
               {/* LEFT COLUMN */}
@@ -112,18 +141,20 @@ export default async function HomePage() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-dashed border-zinc-200 p-6 dark:border-zinc-800">
-                  <div>
-                    <div className="font-semibold text-zinc-800 dark:text-zinc-100">Úlohy pre členov KRO</div>
-                    <div className="mt-1 text-sm text-zinc-400">Modul úloh sa pripravuje.</div>
+                {isSuperAdmin && (
+                  <div className="flex items-center justify-between gap-4 rounded-xl border border-dashed border-zinc-200 p-6 dark:border-zinc-800">
+                    <div>
+                      <div className="font-semibold text-zinc-800 dark:text-zinc-100">Úlohy pre členov KRO</div>
+                      <div className="mt-1 text-sm text-zinc-400">Modul úloh sa pripravuje.</div>
+                    </div>
+                    <a
+                      href="/kro"
+                      className="shrink-0 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                    >
+                      Zobraziť KRO
+                    </a>
                   </div>
-                  <a
-                    href="/kro"
-                    className="shrink-0 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-                  >
-                    Zobraziť KRO
-                  </a>
-                </div>
+                )}
               </div>
 
               {/* RIGHT COLUMN */}
