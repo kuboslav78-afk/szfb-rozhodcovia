@@ -91,3 +91,42 @@ export function daysUntil(dateStr: string): number {
 
   return Math.round((target - todayMidnight) / (1000 * 60 * 60 * 24));
 }
+
+/**
+ * Okno "najbližšie 2 týždne" pre nominačný prehľad na dashboarde — od pondelka
+ * aktuálneho týždňa po nedeľu budúceho. Je ukotvené na pondelok (nie na "dnes"),
+ * takže sa počas týždňa nemení a preklopí sa vždy v pondelok ráno.
+ */
+export function twoWeekWindow(): { from: string; to: string } {
+  const now = new Date();
+  const sinceMonday = (now.getDay() + 6) % 7; // 0 = pondelok
+
+  const monday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - sinceMonday,
+  );
+  const sunday = new Date(
+    monday.getFullYear(),
+    monday.getMonth(),
+    monday.getDate() + 13,
+  );
+
+  return {
+    from: toDateStr(monday.getFullYear(), monday.getMonth() + 1, monday.getDate()),
+    to: toDateStr(sunday.getFullYear(), sunday.getMonth() + 1, sunday.getDate()),
+  };
+}
+
+/** Popis okna z twoWeekWindow pre UI, napr. "1. 9. – 14. 9.". */
+export function formatWindowLabel({ from, to }: { from: string; to: string }): string {
+  const label = (dateStr: string) => {
+    const [year, month, day] = dateStr.split("-").map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString("sk-SK", {
+      day: "numeric",
+      month: "numeric",
+    });
+  };
+
+  return `${label(from)} – ${label(to)}`;
+}

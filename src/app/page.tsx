@@ -6,9 +6,14 @@ import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin } from "@/lib/view-mode";
 import { LICENSE_LABELS, isLicenseLevel } from "@/lib/licenses";
-import { CATEGORIES, CATEGORY_LABELS } from "@/lib/categories";
-import { todayDateStr } from "@/lib/dates";
+import { DashboardCategoryTabs } from "@/components/DashboardCategoryTabs";
+import { CATEGORIES, CATEGORY_LABELS, isCategory } from "@/lib/categories";
+import { formatWindowLabel, todayDateStr, twoWeekWindow } from "@/lib/dates";
 import type { Category } from "@/lib/categories";
+
+function singleParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
 
 function formatDateLabel(dateStr: string) {
   const [year, month, day] = dateStr.split("-").map(Number);
@@ -16,7 +21,8 @@ function formatDateLabel(dateStr: string) {
   return date.toLocaleDateString("sk-SK", { day: "numeric", month: "2-digit" });
 }
 
-export default async function HomePage() {
+export default async function HomePage(props: PageProps<"/">) {
+  const searchParams = await props.searchParams;
   const referee = await requireUser();
   const supabase = await createClient();
   const realIsAdmin = referee.role === "admin";
@@ -43,29 +49,45 @@ export default async function HomePage() {
   if (isSuperAdmin || isRegionalAdmin) {
     const adminCategories: Category[] = isSuperAdmin ? [...CATEGORIES] : myAdminCategories;
 
+    // Prepínač kategórií — ponúka len tie, ku ktorým má admin prístup.
+    // Bez parametra (alebo pri nepovolenej hodnote) sa zobrazujú všetky jeho naraz.
+    const categoryParam = singleParam(searchParams.category);
+    const selectedCategory: Category | null =
+      categoryParam && isCategory(categoryParam) && adminCategories.includes(categoryParam)
+        ? categoryParam
+        : null;
+    const queryCategories = selectedCategory ? [selectedCategory] : adminCategories;
+
+    // Nominačný prehľad drží pevné dvojtýždňové okno ukotvené na pondelok,
+    // takže sa počas týždňa nemení a preklopí sa vždy v pondelok.
+    const nominationWindow = twoWeekWindow();
+
     const [{ data: needsNominationRows }, { count: needsNominationCount }, { count: awaitingResponseCount }] =
       await Promise.all([
         supabase
           .from("matches")
           .select("id, category, league, team_home, team_away, match_date, match_time")
-          .in("category", adminCategories)
+          .in("category", queryCategories)
           .or("referee1_id.is.null,referee2_id.is.null")
-          .gte("match_date", today)
+          .gte("match_date", nominationWindow.from)
+          .lte("match_date", nominationWindow.to)
           .order("match_date")
           .order("match_time")
-          .limit(5),
+          .limit(10),
         supabase
           .from("matches")
           .select("id", { count: "exact", head: true })
-          .in("category", adminCategories)
+          .in("category", queryCategories)
           .or("referee1_id.is.null,referee2_id.is.null")
-          .gte("match_date", today),
+          .gte("match_date", nominationWindow.from)
+          .lte("match_date", nominationWindow.to),
         supabase
           .from("matches")
           .select("id", { count: "exact", head: true })
-          .in("category", adminCategories)
+          .in("category", queryCategories)
           .or("referee1_status.eq.sent,referee2_status.eq.sent")
-          .gte("match_date", today),
+          .gte("match_date", nominationWindow.from)
+          .lte("match_date", nominationWindow.to),
       ]);
 
     return (
@@ -85,28 +107,36 @@ export default async function HomePage() {
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
-            <PageTitle className={isSuperAdmin ? "mb-8" : "mb-1"}>Prehľad</PageTitle>
-            {!isSuperAdmin && (
-              <p className="mb-8 text-sm text-zinc-400">
-                Zobrazené sú len zápasy kategórií, ktoré spravuješ —{" "}
-                {adminCategories.map((c) => CATEGORY_LABELS[c]).join(", ")}.
-              </p>
-            )}
+            <PageTitle className="mb-1">Prehľad</PageTitle>
+            <p className="mb-6 text-sm text-zinc-400">
+              Nominačný prehľad na najbližšie 2 týždne ({formatWindowLabel(nominationWindow)}) — okno sa
+              posúva vždy v pondelok.
+              {!isSuperAdmin &&
+                ` Spravuješ: ${adminCategories.map((c) => CATEGORY_LABELS[c]).join(", ")}.`}
+            </p>
+
+            <DashboardCategoryTabs categories={adminCategories} active={selectedCategory} />
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr] lg:items-start">
               {/* LEFT COLUMN */}
               <div className="flex flex-col gap-6">
                 <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
                   <div className="mb-4 flex items-center justify-between">
-                    <div className="font-semibold text-zinc-800 dark:text-zinc-100">Zápasy na nomináciu</div>
-                    <a href="/nominations" className="text-sm text-brand-indigo hover:underline">
+                    <div>
+                      <div className="font-semibold text-zinc-800 dark:text-zinc-100">Zápasy na nomináciu</div>
+                      <div className="mt-0.5 text-xs text-zinc-400">{formatWindowLabel(nominationWindow)}</div>
+                    </div>
+                    <a
+                      href={selectedCategory ? `/nominations?category=${selectedCategory}` : "/nominations"}
+                      className="text-sm text-brand-indigo hover:underline"
+                    >
                       Zobraziť všetky →
                     </a>
                   </div>
 
                   {(needsNominationRows ?? []).length === 0 ? (
                     <p className="py-6 text-center text-sm text-zinc-400">
-                      Všetky nadchádzajúce zápasy majú obsadených oboch rozhodcov.
+                      V najbližších 2 týždňoch majú všetky zápasy obsadených oboch rozhodcov.
                     </p>
                   ) : (
                     <div className="flex flex-col gap-px bg-zinc-100 dark:bg-zinc-900">
@@ -160,7 +190,8 @@ export default async function HomePage() {
               {/* RIGHT COLUMN */}
               <div className="flex flex-col gap-6">
                 <div className="rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
-                  <div className="mb-4 text-xs font-semibold tracking-wide text-zinc-400 uppercase">Nominácie</div>
+                  <div className="mb-1 text-xs font-semibold tracking-wide text-zinc-400 uppercase">Nominácie</div>
+                  <div className="mb-4 text-xs text-zinc-400">Najbližšie 2 týždne</div>
                   <div className="flex flex-col gap-3">
                     <div className="flex items-baseline justify-between">
                       <span className="text-sm text-zinc-500">Bez rozhodcu</span>
