@@ -8,7 +8,12 @@ import {
   todayDateStr,
   toDateStr,
 } from "@/lib/dates";
-import { CATEGORIES, parseCategoryParam, type Category } from "@/lib/categories";
+import {
+  CATEGORIES,
+  CATEGORY_LABELS,
+  parseCategoryParam,
+  type Category,
+} from "@/lib/categories";
 import type { LicenseLevel } from "@/lib/licenses";
 import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
 import { MonthNav } from "@/components/MonthNav";
@@ -29,7 +34,9 @@ import {
   type CancellationRequestItem,
 } from "@/components/CancellationRequests";
 import { getPendingNominationCount } from "@/lib/nominations";
-import { getEffectiveIsAdmin } from "@/lib/view-mode";
+import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
+import { getCategoryAccess } from "@/lib/category-access";
+import type { CategoryAccessLevel } from "@/app/admin-users/actions";
 import type { AvailabilityStatus } from "@/app/availability/actions";
 
 type DayEntry = {
@@ -57,19 +64,31 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
   const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
   const isViewer = referee.role === "viewer";
   const canSeeAllCategories = isSuperAdmin || isViewer;
+  const refereeView = await isRefereeViewActive();
 
-  const [{ data: myCategoryRows }, { data: myAdminCategoryRows }] =
-    await Promise.all([
-      supabase.from("referee_categories").select("category").eq("referee_id", referee.id),
-      canSeeAllCategories
-        ? Promise.resolve({ data: null })
-        : supabase.from("category_admins").select("category").eq("referee_id", referee.id),
-    ]);
+  const [{ data: myCategoryRows }, categoryAccess] = await Promise.all([
+    supabase.from("referee_categories").select("category").eq("referee_id", referee.id),
+    getCategoryAccess(supabase, referee.id, realIsAdmin),
+  ]);
 
   const myCategories = (myCategoryRows ?? []).map((r) => r.category as Category);
-  const myAdminCategories: Category[] = canSeeAllCategories
+
+  // Prepínač Admin/Rozhodca patrí každému s administratívnym prístupom — vrátane
+  // člena KRO, ktorý má kategórie len na nahliadnutie a zároveň sám píska.
+  const hasAdminAccess = !isViewer && categoryAccess.visible.length > 0;
+
+  // Prepínač na rozhodcu len pre toho, kto naozaj píska (viď dashboard).
+  const isActiveReferee = myCategories.length > 0 || referee.home_region !== null;
+  const canToggleView = realIsAdmin || (hasAdminAccess && isActiveReferee);
+
+  // V "náhľade rozhodcu" sa administratívna časť skryje celá.
+  const myAdminCategories: Category[] = isViewer
     ? [...CATEGORIES]
-    : (myAdminCategoryRows ?? []).map((r) => r.category as Category);
+    : refereeView
+      ? []
+      : categoryAccess.visible;
+  const myEditableCategories: Category[] =
+    isViewer || refereeView ? [] : categoryAccess.editable;
 
   const canSeeAdmin = myAdminCategories.length > 0;
   const view: "prehlad" | "moje" | "admin" =
@@ -95,6 +114,8 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
     : myCategories.includes(requestedCategory)
       ? requestedCategory
       : primaryCategory;
+
+  const canEditCurrentCategory = myEditableCategories.includes(category);
 
   const days = monthGrid(monthKey).filter((d): d is number => d !== null);
   const firstDay = toDateStr(monthKey.year, monthKey.month, days[0]);
@@ -129,7 +150,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
   let cancellationRequests: CancellationRequestItem[] = [];
   let allReferees: RefereeRow[] = [];
   let allRefereeCategories: Record<string, Category[]> = {};
-  let allCategoryAdmins: Record<string, Category[]> = {};
+  let allCategoryAccess: Record<string, Partial<Record<Category, CategoryAccessLevel>>> = {};
 
   if (canSeeAllCategories && (adminView || isAdminSection)) {
     const [{ data: allRefs }, { data: allCatRows }, { data: allAdminRows }] =
@@ -140,7 +161,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
           .eq("active", true)
           .order("full_name"),
         supabase.from("referee_categories").select("referee_id, category"),
-        supabase.from("category_admins").select("referee_id, category"),
+        supabase.from("category_admins").select("referee_id, category, can_edit"),
       ]);
 
     allReferees = allRefs ?? [];
@@ -152,11 +173,11 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
       allRefereeCategories[id].push(row.category as Category);
     }
 
-    allCategoryAdmins = {};
+    allCategoryAccess = {};
     for (const row of allAdminRows ?? []) {
       const id = row.referee_id as string;
-      allCategoryAdmins[id] ??= [];
-      allCategoryAdmins[id].push(row.category as Category);
+      allCategoryAccess[id] ??= {};
+      allCategoryAccess[id][row.category as Category] = row.can_edit ? "edit" : "view";
     }
   }
 
@@ -326,8 +347,10 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
     }
   }
 
+  // Člen KRO s administratívnym prístupom nemusí byť aktívny rozhodca — nenúť ho
+  // vyberať si domáci región len preto, že si prepol do náhľadu rozhodcu.
   const needsHomeRegionPrompt =
-    !isViewer && !referee.home_region && myCategories.length === 0;
+    !isViewer && !hasAdminAccess && !referee.home_region && myCategories.length === 0;
 
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
 
@@ -343,13 +366,17 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
               : "Administrátor · náhľad rozhodcu"
             : isViewer
               ? "Viewer"
-              : null
+              : hasAdminAccess
+                ? refereeView
+                  ? "Náhľad rozhodcu"
+                  : `Prístup · ${categoryAccess.visible.map((c) => CATEGORY_LABELS[c]).join(", ")}`
+                : null
         }
         isAdmin={isSuperAdmin}
         canSeeKro={isSuperAdmin || isViewer}
         pendingNominations={pendingNominations}
-        canToggleView={realIsAdmin}
-        viewMode={isSuperAdmin ? "admin" : "referee"}
+        canToggleView={canToggleView}
+        viewMode={refereeView ? "referee" : hasAdminAccess ? "admin" : "referee"}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         {needsHomeRegionPrompt && <HomeRegionPrompt />}
@@ -432,13 +459,13 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
             />
             <CategoryAdminsManager
               referees={allReferees}
-              initialAdmins={allCategoryAdmins}
+              initialAccess={allCategoryAccess}
             />
           </>
         ) : adminView ? (
           <>
-            {!isViewer && <CancellationRequests items={cancellationRequests} />}
-            {!isViewer && (
+            {canEditCurrentCategory && <CancellationRequests items={cancellationRequests} />}
+            {canEditCurrentCategory && (
               <MatchDaysEditor
                 key={`${monthParam(monthKey)}-${category}`}
                 monthKey={monthKey}

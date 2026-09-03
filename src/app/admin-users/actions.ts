@@ -307,30 +307,36 @@ export async function setRefereeRole(
   revalidatePath("/");
 }
 
-export async function setCategoryAdmin(
+/**
+ * Úroveň administratívneho prístupu ku kategórii:
+ *   "none" — žiadny, "view" — len nahliadnutie (člen KRO), "edit" — plné admin práva.
+ */
+export type CategoryAccessLevel = "none" | "view" | "edit";
+
+export async function setCategoryAccess(
   refereeId: string,
   category: Category,
-  enabled: boolean,
+  level: CategoryAccessLevel,
 ) {
   await requireSuperAdmin();
 
   const admin = serviceClient();
 
-  if (enabled) {
-    const { error } = await admin
-      .from("category_admins")
-      .upsert(
-        { referee_id: refereeId, category },
-        { onConflict: "referee_id,category" },
-      );
-
-    if (error) throw new Error(error.message);
-  } else {
+  if (level === "none") {
     const { error } = await admin
       .from("category_admins")
       .delete()
       .eq("referee_id", refereeId)
       .eq("category", category);
+
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await admin
+      .from("category_admins")
+      .upsert(
+        { referee_id: refereeId, category, can_edit: level === "edit" },
+        { onConflict: "referee_id,category" },
+      );
 
     if (error) throw new Error(error.message);
   }

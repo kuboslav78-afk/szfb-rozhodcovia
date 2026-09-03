@@ -7,7 +7,8 @@ import { COMPETITIONS } from "@/lib/szfb-scraper";
 import { NominationsManager } from "@/components/NominationsManager";
 import { MyNominations, type MyNomination } from "@/components/MyNominations";
 import { getPendingNominationCount } from "@/lib/nominations";
-import { getEffectiveIsAdmin } from "@/lib/view-mode";
+import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
+import { getCategoryAccess } from "@/lib/category-access";
 import { CATEGORIES, CATEGORY_LABELS, parseCategoryParam, type Category } from "@/lib/categories";
 import { getAllVenueCoordinates } from "@/lib/geocoding";
 
@@ -26,23 +27,38 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
 
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
 
-  let myAdminCategories: Category[] = [];
-  if (!realIsAdmin && !isViewerRole) {
-    const { data } = await supabase.from("category_admins").select("category").eq("referee_id", referee.id);
-    myAdminCategories = (data ?? []).map((r) => r.category as Category);
-  }
+  const refereeView = await isRefereeViewActive();
+  const categoryAccess = isViewerRole
+    ? { visible: [], editable: [] }
+    : await getCategoryAccess(supabase, referee.id, realIsAdmin);
 
-  // Plný admin a viewer vidia (viewer len na čítanie) všetky regióny;
-  // regionálny admin (category_admins) len tie svoje. Keď je v UI "náhľad
-  // rozhodcu", správca sa vôbec nedostane do admin vetvy — vidí "Moje nominácie".
-  const allowedCategories: Category[] = realIsAdmin || isViewerRole ? [...CATEGORIES] : myAdminCategories;
-  const canManageNominations = isEffectiveAdmin || isViewerRole || myAdminCategories.length > 0;
-  const readOnly = isViewerRole;
+  // Viewer vidí všetky regióny (len na čítanie); ostatní tie, ku ktorým majú
+  // kategóriový prístup. Kto si prepol "náhľad rozhodcu", do admin vetvy vôbec
+  // nespadne — dostane "Moje nominácie".
+  const allowedCategories: Category[] = isViewerRole ? [...CATEGORIES] : categoryAccess.visible;
+
+  // Prepínač na rozhodcu len pre toho, kto naozaj píska (viď dashboard).
+  const { count: myCategoryCount } = await supabase
+    .from("referee_categories")
+    .select("category", { count: "exact", head: true })
+    .eq("referee_id", referee.id);
+
+  const isActiveReferee = (myCategoryCount ?? 0) > 0 || referee.home_region !== null;
+  const canToggleView =
+    realIsAdmin || (categoryAccess.visible.length > 0 && isActiveReferee);
+  // Viewer nemá prepínač, ale mohol by mať zvyškovú cookie z čias, keď mal admin
+  // práva — jeho read-only prehľad preto na náhľade rozhodcu nezávisí.
+  const canManageNominations =
+    isViewerRole || (!refereeView && allowedCategories.length > 0);
 
   const requestedCategory = parseCategoryParam(singleParam(searchParamsRaw.category));
   const category: Category = allowedCategories.includes(requestedCategory)
     ? requestedCategory
     : (allowedCategories[0] ?? "celostatny");
+
+  // Nahliadací prístup (napr. člen KRO na celoštátnej) sa správa ako viewer,
+  // ale len v tej jednej kategórii — inde môže mať plné práva.
+  const readOnly = isViewerRole || !categoryAccess.editable.includes(category);
 
   if (!canManageNominations) {
     const { data: matches } = await supabase
@@ -97,7 +113,7 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
           isAdmin={false}
           canSeeKro={isViewerRole}
           pendingNominations={pendingNominations}
-          canToggleView={realIsAdmin}
+          canToggleView={canToggleView}
           viewMode="referee"
         />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -147,7 +163,7 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
     ? "Administrátor"
     : isViewerRole
       ? "Viewer"
-      : `Regionálny admin · ${allowedCategories.map((c) => CATEGORY_LABELS[c]).join(", ")}`;
+      : `Prístup · ${allowedCategories.map((c) => CATEGORY_LABELS[c]).join(", ")}`;
 
   return (
     <div className="lg:flex">
@@ -158,7 +174,7 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
         isAdmin={isEffectiveAdmin}
         canSeeKro={isEffectiveAdmin || isViewerRole}
         pendingNominations={pendingNominations}
-        canToggleView={realIsAdmin}
+        canToggleView={canToggleView}
         viewMode="admin"
       />
       <div className="flex min-w-0 flex-1 flex-col">

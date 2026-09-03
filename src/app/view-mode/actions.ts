@@ -23,8 +23,17 @@ export async function setViewMode(mode: "admin" | "referee") {
     .eq("id", user.id)
     .single();
 
+  // Prepínač patrí každému s administratívnym prístupom — super adminovi,
+  // regionálnemu adminovi aj členovi KRO s nahliadacím prístupom.
   if (referee?.role !== "admin") {
-    throw new Error("Túto akciu môže vykonať len administrátor.");
+    const { count } = await supabase
+      .from("category_admins")
+      .select("category", { count: "exact", head: true })
+      .eq("referee_id", user.id);
+
+    if (!count) {
+      throw new Error("Túto akciu môže vykonať len administrátor.");
+    }
   }
 
   const store = await cookies();

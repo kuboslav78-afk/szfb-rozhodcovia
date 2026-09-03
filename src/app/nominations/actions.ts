@@ -5,14 +5,15 @@ import { createClient } from "@/lib/supabase/server";
 import { COMPETITIONS, scrapeCompetition } from "@/lib/szfb-scraper";
 import { sendEmail, sendBatchEmails, nominationSentEmailHtml } from "@/lib/email";
 import { getVenuesWithoutCoordinates, geocodeVenuesByCity } from "@/lib/geocoding";
-import { CATEGORIES, type Category } from "@/lib/categories";
+import { type Category } from "@/lib/categories";
+import { getCategoryAccess, type CategoryAccess } from "@/lib/category-access";
 
 type NominationAdmin = {
   supabase: Awaited<ReturnType<typeof createClient>>;
   userId: string;
   isSuperAdmin: boolean;
-  /** Kategórie, ktoré smie spravovať — super admin má všetky. */
-  categories: Category[];
+  /** Kategórie, ktoré vidí (vrátane nahliadacích) a v ktorých smie upravovať. */
+  access: CategoryAccess;
 };
 
 /**
@@ -38,30 +39,24 @@ async function requireNominationAdmin(): Promise<NominationAdmin> {
     .eq("id", user.id)
     .single();
 
-  if (referee?.role === "admin") {
-    return { supabase, userId: user.id, isSuperAdmin: true, categories: [...CATEGORIES] };
-  }
+  const isSuperAdmin = referee?.role === "admin";
+  const access = await getCategoryAccess(supabase, user.id, isSuperAdmin);
 
-  const { data: adminRows } = await supabase
-    .from("category_admins")
-    .select("category")
-    .eq("referee_id", user.id);
-
-  const categories = (adminRows ?? []).map((r) => r.category as Category);
-
-  if (categories.length === 0) {
+  // Nahliadací prístup (can_edit = false) tu zámerne neprejde — všetky akcie
+  // v tomto súbore okrem čítania niečo menia.
+  if (access.editable.length === 0) {
     throw new Error("Túto akciu môže vykonať len administrátor.");
   }
 
-  return { supabase, userId: user.id, isSuperAdmin: false, categories };
+  return { supabase, userId: user.id, isSuperAdmin, access };
 }
 
 /** Prístup ku konkrétnej kategórii (súťaž, ručne pridávaný zápas). */
 async function requireCategoryAdmin(category: string): Promise<NominationAdmin> {
   const admin = await requireNominationAdmin();
 
-  if (!admin.categories.includes(category as Category)) {
-    throw new Error("Túto kategóriu spravuje iný administrátor.");
+  if (!admin.access.editable.includes(category as Category)) {
+    throw new Error("V tejto kategórii nemáš právo upravovať.");
   }
 
   return admin;
@@ -81,8 +76,8 @@ async function requireMatchAdmin(matchId: string): Promise<NominationAdmin> {
     throw new Error("Zápas sa nenašiel.");
   }
 
-  if (!admin.categories.includes(match.category as Category)) {
-    throw new Error("Tento zápas spravuje iný administrátor.");
+  if (!admin.access.editable.includes(match.category as Category)) {
+    throw new Error("V kategórii tohto zápasu nemáš právo upravovať.");
   }
 
   return admin;
@@ -243,13 +238,13 @@ export type FoundMatch = {
 
 /** Nájde zápasy podľa čísla zápasu (Č.z.) — ručný vstup pre žiadosti z interného ISF, kým sa nedostanú na verejný web. */
 export async function findMatchesByNumber(matchNumber: number): Promise<FoundMatch[]> {
-  const { supabase, categories } = await requireNominationAdmin();
+  const { supabase, access } = await requireNominationAdmin();
 
   const { data, error } = await supabase
     .from("matches")
     .select("id, match_number, league, category, team_home, team_away, match_date, match_time, venue")
     .eq("match_number", matchNumber)
-    .in("category", categories);
+    .in("category", access.editable);
 
   if (error) throw new Error(error.message);
 

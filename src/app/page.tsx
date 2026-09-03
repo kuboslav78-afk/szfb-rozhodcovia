@@ -4,10 +4,11 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageTitle } from "@/components/PageTitle";
 import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
 import { getPendingNominationCount } from "@/lib/nominations";
-import { getEffectiveIsAdmin } from "@/lib/view-mode";
+import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
 import { LICENSE_LABELS, isLicenseLevel } from "@/lib/licenses";
 import { DashboardCategoryTabs } from "@/components/DashboardCategoryTabs";
-import { CATEGORIES, CATEGORY_LABELS, isCategory } from "@/lib/categories";
+import { CATEGORY_LABELS, isCategory } from "@/lib/categories";
+import { getCategoryAccess } from "@/lib/category-access";
 import { formatWindowLabel, todayDateStr, twoWeekWindow } from "@/lib/dates";
 import type { Category } from "@/lib/categories";
 
@@ -32,22 +33,30 @@ export default async function HomePage(props: PageProps<"/">) {
 
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
 
-  // Regionálny admin (category_admins) dostane rovnaký nominačný prehľad ako super
-  // admin, len zúžený na kategórie, ktoré spravuje. Keď je super admin prepnutý do
-  // "náhľadu rozhodcu", do tejto vetvy vôbec nespadne — vidí rozhodcovský dashboard.
-  let myAdminCategories: Category[] = [];
-  if (!realIsAdmin && !isViewer) {
-    const { data } = await supabase
-      .from("category_admins")
-      .select("category")
-      .eq("referee_id", referee.id);
-    myAdminCategories = (data ?? []).map((r) => r.category as Category);
-  }
+  // Kategóriový prístup (category_admins) dáva rovnaký nominačný prehľad ako má
+  // super admin, len zúžený na kategórie používateľa — a to aj pri nahliadacom
+  // prístupe, keďže dashboard nič neupravuje. Kto si prepol "náhľad rozhodcu",
+  // dostane rozhodcovský dashboard bez ohľadu na svoje práva.
+  const refereeView = await isRefereeViewActive();
+  const categoryAccess = isViewer
+    ? { visible: [], editable: [] }
+    : await getCategoryAccess(supabase, referee.id, realIsAdmin);
 
-  const isRegionalAdmin = myAdminCategories.length > 0;
+  const hasAdminAccess = categoryAccess.visible.length > 0;
 
-  if (isSuperAdmin || isRegionalAdmin) {
-    const adminCategories: Category[] = isSuperAdmin ? [...CATEGORIES] : myAdminCategories;
+  // Prepínač na rozhodcu má zmysel len pre toho, kto naozaj píska — člen KRO,
+  // ktorý rozhodcom nie je, by sa prepol do prázdnej stránky. Super admin si ho
+  // ponecháva vždy (potrebuje vedieť skontrolovať, ako appka vyzerá rozhodcovi).
+  const { count: myCategoryCount } = await supabase
+    .from("referee_categories")
+    .select("category", { count: "exact", head: true })
+    .eq("referee_id", referee.id);
+
+  const isActiveReferee = (myCategoryCount ?? 0) > 0 || referee.home_region !== null;
+  const canToggleView = realIsAdmin || (hasAdminAccess && isActiveReferee);
+
+  if (hasAdminAccess && !refereeView) {
+    const adminCategories = categoryAccess.visible;
 
     // Prepínač kategórií — ponúka len tie, ku ktorým má admin prístup.
     // Bez parametra (alebo pri nepovolenej hodnote) sa zobrazujú všetky jeho naraz.
@@ -102,7 +111,7 @@ export default async function HomePage(props: PageProps<"/">) {
           }
           isAdmin={isSuperAdmin}
           pendingNominations={pendingNominations}
-          canToggleView={realIsAdmin}
+          canToggleView={canToggleView}
           viewMode="admin"
         />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -253,7 +262,10 @@ export default async function HomePage(props: PageProps<"/">) {
     ]);
 
   const myCategories = (myCategoryRows ?? []).map((r) => r.category as Category);
-  const needsHomeRegionPrompt = !isViewer && !referee.home_region && myCategories.length === 0;
+  // Člen KRO s administratívnym prístupom nemusí byť aktívny rozhodca — nenúť ho
+  // vyberať si domáci región len preto, že si prepol do náhľadu rozhodcu.
+  const needsHomeRegionPrompt =
+    !isViewer && !hasAdminAccess && !referee.home_region && myCategories.length === 0;
 
   const licenseLevel = refereeRow?.license_level;
   const licenseLabel = licenseLevel && isLicenseLevel(licenseLevel) ? LICENSE_LABELS[licenseLevel] : null;
@@ -281,11 +293,19 @@ export default async function HomePage(props: PageProps<"/">) {
       <Sidebar
         current="prehlad"
         refereeName={referee.full_name}
-        roleLabel={realIsAdmin ? "Administrátor · náhľad rozhodcu" : referee.role === "viewer" ? "Viewer" : null}
+        roleLabel={
+          realIsAdmin
+            ? "Administrátor · náhľad rozhodcu"
+            : referee.role === "viewer"
+              ? "Viewer"
+              : hasAdminAccess
+                ? "Náhľad rozhodcu"
+                : null
+        }
         isAdmin={isSuperAdmin}
         canSeeKro={referee.role === "viewer"}
         pendingNominations={pendingNominations}
-        canToggleView={realIsAdmin}
+        canToggleView={canToggleView}
         viewMode="referee"
       />
       <div className="flex min-w-0 flex-1 flex-col">

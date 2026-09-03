@@ -2,14 +2,25 @@
 
 import { useState, useTransition } from "react";
 import { CATEGORIES, CATEGORY_LABELS, type Category } from "@/lib/categories";
-import { setCategoryAdmin, setRefereeRole } from "@/app/admin-users/actions";
+import {
+  setCategoryAccess,
+  setRefereeRole,
+  type CategoryAccessLevel,
+} from "@/app/admin-users/actions";
 
 type Role = "admin" | "referee" | "viewer";
 type Referee = { id: string; full_name: string; role: Role };
 
 type Props = {
   referees: Referee[];
-  initialAdmins: Record<string, Category[]>;
+  /** Úroveň prístupu ku každej kategórii, ktorú rozhodca má (chýbajúca = "none"). */
+  initialAccess: Record<string, Partial<Record<Category, CategoryAccessLevel>>>;
+};
+
+const ACCESS_LABELS: Record<CategoryAccessLevel, string> = {
+  none: "—",
+  view: "Nahliadnuť",
+  edit: "Upravovať",
 };
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -60,40 +71,48 @@ function RoleCell({ referee }: { referee: Referee }) {
   );
 }
 
-export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
+export function CategoryAdminsManager({ referees, initialAccess }: Props) {
   const [collapsed, setCollapsed] = useState(true);
-  const [admins, setAdmins] = useState(
-    () =>
-      new Map(
-        Object.entries(initialAdmins).map(([id, cats]) => [id, new Set(cats)]),
-      ),
-  );
+  const [access, setAccess] = useState(() => new Map(Object.entries(initialAccess)));
   const [isPending, startTransition] = useTransition();
 
-  function toggle(refereeId: string, refereeName: string, category: Category) {
-    const current = admins.get(refereeId) ?? new Set<Category>();
-    const next = !current.has(category);
+  function levelFor(refereeId: string, category: Category): CategoryAccessLevel {
+    return access.get(refereeId)?.[category] ?? "none";
+  }
 
+  function change(
+    refereeId: string,
+    refereeName: string,
+    category: Category,
+    next: CategoryAccessLevel,
+  ) {
+    const current = levelFor(refereeId, category);
+    if (next === current) return;
+
+    // Odobratie práv aj degradáciu na nahliadnutie potvrdzujeme — obe niekomu
+    // niečo berú, na rozdiel od povýšenia.
     if (
-      !next &&
+      current === "edit" &&
       !window.confirm(
-        `Odobrať ${refereeName} admin práva pre región ${CATEGORY_LABELS[category]}?`,
+        next === "none"
+          ? `Odobrať ${refereeName} prístup ku kategórii ${CATEGORY_LABELS[category]}?`
+          : `Zmeniť ${refereeName} v kategórii ${CATEGORY_LABELS[category]} na iba nahliadnutie? Stratí právo čokoľvek tam upravovať.`,
       )
     ) {
       return;
     }
 
-    setAdmins((prev) => {
+    setAccess((prev) => {
       const copy = new Map(prev);
-      const set = new Set(copy.get(refereeId) ?? []);
-      if (next) set.add(category);
-      else set.delete(category);
-      copy.set(refereeId, set);
+      const forReferee = { ...(copy.get(refereeId) ?? {}) };
+      if (next === "none") delete forReferee[category];
+      else forReferee[category] = next;
+      copy.set(refereeId, forReferee);
       return copy;
     });
 
     startTransition(async () => {
-      await setCategoryAdmin(refereeId, category, next);
+      await setCategoryAccess(refereeId, category, next);
     });
   }
 
@@ -128,12 +147,16 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
             Administrátori
           </h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Kategórie = admin práva len pre daný región/kategóriu.{" "}
+            Pri každej kategórii nastav <span className="font-semibold">Upravovať</span>{" "}
+            (plné admin práva pre daný región) alebo{" "}
+            <span className="font-semibold">Nahliadnuť</span> (vidí prehľad, ale nič
+            nemení — napr. člen KRO). Rozhodcovská časť ostáva nedotknutá, takže si
+            svoju dostupnosť aj nominácie vypĺňa ďalej cez prepínač Admin/Rozhodca.{" "}
             <span className="font-semibold text-brand-red">Super Admin</span>{" "}
             = plný prístup ku všetkému, vrátane správy ostatných adminov —
-            udeľuj opatrne. <span className="font-semibold">Viewer</span> = vidí
-            prehľad všetkých kategórií, ale nič nemôže upravovať (ani vlastnú
-            dostupnosť, ak ju rozhodca predtým vypĺňal).
+            udeľuj opatrne. <span className="font-semibold">Viewer</span> = celoplošne
+            len na čítanie, ale stratí aj vlastnú dostupnosť — pre členov KRO, ktorí sú
+            zároveň rozhodcami, použi radšej Nahliadnuť.
           </p>
         </div>
         <button
@@ -167,8 +190,6 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
           </thead>
           <tbody>
             {referees.map((referee) => {
-              const refereeAdmins = admins.get(referee.id) ?? new Set();
-
               return (
                 <tr
                   key={referee.id}
@@ -180,17 +201,36 @@ export function CategoryAdminsManager({ referees, initialAdmins }: Props) {
                   <td className="border-l border-zinc-100 px-2 py-2 text-center dark:border-zinc-900">
                     <RoleCell referee={referee} />
                   </td>
-                  {CATEGORIES.map((category) => (
-                    <td key={category} className="px-2 py-2 text-center">
-                      <input
-                        type="checkbox"
-                        disabled={isPending}
-                        checked={refereeAdmins.has(category)}
-                        onChange={() => toggle(referee.id, referee.full_name, category)}
-                        className="h-4 w-4 accent-brand-indigo"
-                      />
-                    </td>
-                  ))}
+                  {CATEGORIES.map((category) => {
+                    const level = levelFor(referee.id, category);
+                    return (
+                      <td key={category} className="px-2 py-2 text-center">
+                        <select
+                          disabled={isPending}
+                          value={level}
+                          onChange={(e) =>
+                            change(
+                              referee.id,
+                              referee.full_name,
+                              category,
+                              e.target.value as CategoryAccessLevel,
+                            )
+                          }
+                          className={`rounded-md border bg-white px-1.5 py-1 text-xs outline-none focus:border-brand-indigo dark:bg-zinc-900 ${
+                            level === "edit"
+                              ? "border-brand-indigo font-semibold text-brand-indigo"
+                              : level === "view"
+                                ? "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                                : "border-zinc-200 text-zinc-400 dark:border-zinc-800"
+                          }`}
+                        >
+                          <option value="none">{ACCESS_LABELS.none}</option>
+                          <option value="view">{ACCESS_LABELS.view}</option>
+                          <option value="edit">{ACCESS_LABELS.edit}</option>
+                        </select>
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}

@@ -13,3 +13,13 @@ export async function getEffectiveIsAdmin(realRole: string): Promise<boolean> {
   const store = await cookies();
   return store.get(VIEW_MODE_COOKIE)?.value !== "referee";
 }
+
+/**
+ * Je zapnutý "náhľad rozhodcu"? Na rozdiel od getEffectiveIsAdmin sa neviaže na
+ * rolu — prepínač má aj regionálny admin a člen KRO s nahliadacím prístupom,
+ * ktorí sú zároveň aktívni rozhodcovia a potrebujú si prepnúť na svoju dostupnosť.
+ */
+export async function isRefereeViewActive(): Promise<boolean> {
+  const store = await cookies();
+  return store.get(VIEW_MODE_COOKIE)?.value === "referee";
+}
