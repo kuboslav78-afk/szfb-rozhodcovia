@@ -1,13 +1,18 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   type MonthKey,
   monthGrid,
   toDateStr,
   weekdayLabels,
 } from "@/lib/dates";
-import { setMatchDay, setMatchDayLeagues } from "@/app/match-days/actions";
+import {
+  setMatchDay,
+  setMatchDayLeagues,
+  syncMatchDaysFromNominations,
+} from "@/app/match-days/actions";
 import type { Category } from "@/lib/categories";
 import { leaguesForCategory } from "@/lib/leagues";
 
@@ -42,6 +47,29 @@ export function MatchDaysEditor({
   const [leagues, setLeaguesState] = useState(initialLeagues);
   const [collapsed, setCollapsed] = useState(initialMatchDays.length > 0);
   const [isPending, startTransition] = useTransition();
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+  const router = useRouter();
+
+  // Pri importe zo szfb.sk sa hracie dni dopočítajú samy; toto je na dobehnutie
+  // zápasov, ktoré sú v databáze ešte spred zavedenia automatiky.
+  async function handleSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const { created, updated } = await syncMatchDaysFromNominations(category);
+      setSyncResult(
+        created === 0 && updated === 0
+          ? "Všetko už sedí s nomináciami."
+          : `Pridaných ${created} dní, upravené ligy pri ${updated}.`,
+      );
+      router.refresh();
+    } catch (error) {
+      setSyncResult(error instanceof Error ? error.message : "Nepodarilo sa dopočítať.");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const availableLeagues = leaguesForCategory(category);
 
@@ -114,17 +142,30 @@ export function MatchDaysEditor({
             Hracie dni
           </h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Klikni na dni, ktoré chceš ponúknuť rozhodcom na vyplnenie
-            dostupnosti.
+            Dni, v ktoré sa podľa naimportovaných zápasov hrá, sa dopĺňajú samy —
+            klikaním pridáš deň navyše (napr. keď rozpis ešte nie je na szfb.sk).
           </p>
+          {syncResult && (
+            <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">{syncResult}</p>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={() => setCollapsed(true)}
-          className="shrink-0 rounded-lg bg-brand-indigo px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-indigo-dark"
-        >
-          Potvrdiť
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            disabled={syncing}
+            onClick={handleSync}
+            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            {syncing ? "Dopočítavam…" : "Dopočítať z nominácií"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCollapsed(true)}
+            className="rounded-lg bg-brand-indigo px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-indigo-dark"
+          >
+            Potvrdiť
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-7 gap-2 text-center text-xs font-semibold text-zinc-400">

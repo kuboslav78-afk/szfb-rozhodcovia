@@ -7,6 +7,7 @@ import { sendEmail, sendBatchEmails, nominationSentEmailHtml } from "@/lib/email
 import { getVenuesWithoutCoordinates, geocodeVenuesByCity } from "@/lib/geocoding";
 import { type Category } from "@/lib/categories";
 import { getCategoryAccess, type CategoryAccess } from "@/lib/category-access";
+import { syncMatchDaysFromMatches } from "@/lib/match-days";
 
 type NominationAdmin = {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -181,7 +182,11 @@ export async function importCompetition(competitionId: string) {
     }
   }
 
+  // Hracie dni a ligy sa dopočítajú zo zápasov — admin ich už nevypĺňa ručne.
+  await syncMatchDaysFromMatches(supabase, competition.category);
+
   revalidatePath("/nominations");
+  revalidatePath("/dostupnost");
 
   if (toNotify.length > 0) {
     const allIds = Array.from(
@@ -288,7 +293,10 @@ export async function createManualMatch(input: ManualMatchCreateInput) {
 
   if (error) throw new Error(error.message);
 
+  await syncMatchDaysFromMatches(supabase, input.category as Category);
+
   revalidatePath("/nominations");
+  revalidatePath("/dostupnost");
 }
 
 export type ManualMatchUpdateInput = {
@@ -341,7 +349,19 @@ export async function manualUpdateMatch(matchId: string, input: ManualMatchUpdat
   const { error } = await supabase.from("matches").update(row).eq("id", matchId);
   if (error) throw new Error(error.message);
 
+  // Presun zápasu na iný deň znamená aj nový hrací deň (starý necháme — rozhodcovia
+  // tam už môžu mať vyplnenú dostupnosť a iné zápasy sa tam môžu stále hrať).
+  if (dateChanged) {
+    const { data: moved } = await supabase
+      .from("matches")
+      .select("category")
+      .eq("id", matchId)
+      .single();
+    if (moved) await syncMatchDaysFromMatches(supabase, moved.category as Category);
+  }
+
   revalidatePath("/nominations");
+  revalidatePath("/dostupnost");
 
   if (notifyRefereeIds.length > 0) {
     const bothIds = [existing.referee1_id, existing.referee2_id].filter(
