@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { COMPETITIONS, scrapeCompetition } from "@/lib/szfb-scraper";
 import { sendEmail, sendBatchEmails, nominationSentEmailHtml } from "@/lib/email";
+import { geocodeVenuesBatch } from "@/lib/geocoding";
 
 async function requireSuperAdmin() {
   const supabase = await createClient();
@@ -40,7 +41,12 @@ export async function importCompetition(competitionId: string) {
 
   let created = 0;
   let updated = 0;
-  const toNotify: { refereeId: string; match: (typeof scraped)[number] }[] = [];
+  const toNotify: {
+    refereeId: string;
+    referee1Id: string | null;
+    referee2Id: string | null;
+    match: (typeof scraped)[number];
+  }[] = [];
 
   for (const match of scraped) {
     const { data: existing } = await supabase
@@ -83,11 +89,21 @@ export async function importCompetition(competitionId: string) {
 
         if (existing.referee1_id && existing.referee1_status === "confirmed") {
           row.referee1_status = "sent";
-          toNotify.push({ refereeId: existing.referee1_id, match });
+          toNotify.push({
+            refereeId: existing.referee1_id,
+            referee1Id: existing.referee1_id,
+            referee2Id: existing.referee2_id,
+            match,
+          });
         }
         if (existing.referee2_id && existing.referee2_status === "confirmed") {
           row.referee2_status = "sent";
-          toNotify.push({ refereeId: existing.referee2_id, match });
+          toNotify.push({
+            refereeId: existing.referee2_id,
+            referee1Id: existing.referee1_id,
+            referee2Id: existing.referee2_id,
+            match,
+          });
         }
       }
 
@@ -104,12 +120,14 @@ export async function importCompetition(competitionId: string) {
   revalidatePath("/nominations");
 
   if (toNotify.length > 0) {
-    const refereeIds = Array.from(new Set(toNotify.map((n) => n.refereeId)));
-    const { data: refs } = await supabase.from("referees").select("id, full_name, email").in("id", refereeIds);
+    const allIds = Array.from(
+      new Set(toNotify.flatMap((n) => [n.refereeId, n.referee1Id, n.referee2Id].filter((id): id is string => Boolean(id)))),
+    );
+    const { data: refs } = await supabase.from("referees").select("id, full_name, email").in("id", allIds);
     const byId = new Map((refs ?? []).map((r) => [r.id, r]));
 
     const emails = toNotify
-      .map(({ refereeId, match }) => {
+      .map(({ refereeId, referee1Id, referee2Id, match }) => {
         const ref = byId.get(refereeId);
         if (!ref?.email) return null;
         return {
@@ -123,6 +141,8 @@ export async function importCompetition(competitionId: string) {
             matchTime: match.matchTime,
             venue: match.venue,
             league: competition.league,
+            referee1Name: referee1Id ? (byId.get(referee1Id)?.full_name ?? null) : null,
+            referee2Name: referee2Id ? (byId.get(referee2Id)?.full_name ?? null) : null,
             reason: "time_changed",
           }),
         };
@@ -278,6 +298,9 @@ export async function manualUpdateMatch(matchId: string, input: ManualMatchUpdat
       if (!ref?.email) continue;
       const partnerId = existing.referee1_id === refereeId ? existing.referee2_id : existing.referee1_id;
       const partner = partnerId ? byId.get(partnerId) : null;
+      const isSlot1 = existing.referee1_id === refereeId;
+      const referee1Name = isSlot1 ? ref.full_name : (partner?.full_name ?? null);
+      const referee2Name = isSlot1 ? (partner?.full_name ?? null) : ref.full_name;
       try {
         await sendEmail({
           to: ref.email,
@@ -291,7 +314,8 @@ export async function manualUpdateMatch(matchId: string, input: ManualMatchUpdat
             venue: input.venue,
             league: existing.league,
             reason: "time_changed",
-            partnerName: partner?.full_name ?? null,
+            referee1Name,
+            referee2Name,
           }),
         });
       } catch {
@@ -402,6 +426,8 @@ export async function setMatchRefereeStatus(
 
       const ref = refs?.find((r) => r.id === refereeId);
       const partner = partnerId ? refs?.find((r) => r.id === partnerId) : null;
+      const referee1Name = slot === 1 ? (ref?.full_name ?? null) : (partner?.full_name ?? null);
+      const referee2Name = slot === 2 ? (ref?.full_name ?? null) : (partner?.full_name ?? null);
 
       if (ref?.email) {
         try {
@@ -417,7 +443,8 @@ export async function setMatchRefereeStatus(
               venue: match.venue,
               league: match.league,
               reason: "new",
-              partnerName: partner?.full_name ?? null,
+              referee1Name,
+              referee2Name,
             }),
           });
         } catch {
@@ -426,4 +453,14 @@ export async function setMatchRefereeStatus(
       }
     }
   }
+}
+
+/**
+ * Geokóduje ďalšiu dávku hál bez súradníc (Nominatim dovoľuje len 1 req/s,
+ * takže sa to volá opakovane z klienta, kým `remaining` neklesne na 0).
+ * Súradnice sa používajú na odhad, či rozhodca stihne dva zápasy za deň.
+ */
+export async function geocodeVenues() {
+  await requireSuperAdmin();
+  return geocodeVenuesBatch();
 }

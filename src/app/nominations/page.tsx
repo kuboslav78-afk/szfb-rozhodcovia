@@ -9,6 +9,7 @@ import { MyNominations, type MyNomination } from "@/components/MyNominations";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin } from "@/lib/view-mode";
 import { CATEGORIES, CATEGORY_LABELS, parseCategoryParam, type Category } from "@/lib/categories";
+import { getAllVenueCoordinates } from "@/lib/geocoding";
 
 function singleParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -140,6 +141,7 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
   ]);
 
   const competitions = COMPETITIONS.filter((c) => c.category === category);
+  const venueCoordinates = canManageNominations && !readOnly ? await getAllVenueCoordinates() : {};
 
   const roleLabel = realIsAdmin
     ? "Administrátor"
@@ -171,6 +173,7 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
             initialMatches={matches ?? []}
             referees={referees ?? []}
             availability={availabilityRows ?? []}
+            venueCoordinates={venueCoordinates}
           />
         </main>
       </div>

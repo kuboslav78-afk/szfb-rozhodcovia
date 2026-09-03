@@ -46,6 +46,8 @@ type Match = {
   time_changed_at: string | null;
 };
 
+type VenueCoordinates = Record<string, { lat: number; lng: number }>;
+
 type Props = {
   category: Category;
   competitions: CompetitionConfig[];
@@ -53,6 +55,7 @@ type Props = {
   referees: Referee[];
   availability: AvailabilityRow[];
   readOnly: boolean;
+  venueCoordinates: VenueCoordinates;
 };
 
 const STATUS_LABELS: Record<NominationStatus, string> = {
@@ -112,6 +115,73 @@ function formatDateLabel(dateStr: string) {
 function refereeName(referees: Referee[], id: string | null) {
   if (!id) return null;
   return referees.find((r) => r.id === id)?.full_name ?? null;
+}
+
+// Odhad, či rozhodca stihne dva zápasy v ten istý deň: zápas trvá cca 2 hodiny
+// a medzi koncom prvého a začiatkom druhého potrebuje čas na presun (odhad
+// vzdušnou vzdialenosťou hál pri priemernej rýchlosti 70 km/h). Keď vzdialenosť
+// hál nepoznáme (haly ešte negeokódované) alebo chýba čas zápasu, radšej to
+// označíme ako kolíziu — admin to vie vždy vyhľadaním mena obísť.
+const MATCH_DURATION_HOURS = 2;
+const AVERAGE_SPEED_KMH = 70;
+
+function timeToHours(t: string | null) {
+  if (!t) return null;
+  const [h, m] = t.split(":").map(Number);
+  return h + m / 60;
+}
+
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const la1 = toRad(a.lat);
+  const la2 = toRad(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(h));
+}
+
+function findRefereeConflict(
+  refereeId: string,
+  currentMatch: Match,
+  allMatches: Match[],
+  venueCoordinates: VenueCoordinates,
+): string | null {
+  const sameDay = allMatches.filter((m) => {
+    if (m.id === currentMatch.id || m.match_date !== currentMatch.match_date) return false;
+    if (m.referee1_id === refereeId) return m.referee1_status !== "rejected";
+    if (m.referee2_id === refereeId) return m.referee2_status !== "rejected";
+    return false;
+  });
+
+  for (const other of sameDay) {
+    const currentStart = timeToHours(currentMatch.match_time);
+    const otherStart = timeToHours(other.match_time);
+
+    if (currentStart === null || otherStart === null) {
+      return `${other.team_home} vs ${other.team_away} (rovnaký deň, čas zápasu neznámy)`;
+    }
+
+    const [earlier, later] =
+      currentStart <= otherStart ? [currentMatch, other] : [other, currentMatch];
+    const gapHours = timeToHours(later.match_time)! - timeToHours(earlier.match_time)! - MATCH_DURATION_HOURS;
+
+    let travelHours: number;
+    if (earlier.venue && later.venue && earlier.venue === later.venue) {
+      travelHours = 0;
+    } else {
+      const venueA = earlier.venue ? venueCoordinates[earlier.venue] : null;
+      const venueB = later.venue ? venueCoordinates[later.venue] : null;
+      travelHours = venueA && venueB ? haversineKm(venueA, venueB) / AVERAGE_SPEED_KMH : Infinity;
+    }
+
+    if (gapHours < travelHours) {
+      return `${other.team_home} vs ${other.team_away} (${other.match_time?.slice(0, 5) ?? "?"}, ${other.venue ?? "neznáma hala"})`;
+    }
+  }
+
+  return null;
 }
 
 function ImportPanel({ competitions }: { competitions: CompetitionConfig[] }) {

@@ -120,9 +120,18 @@ export function nominationSentEmailHtml(params: {
   venue: string | null;
   league: string;
   reason: "new" | "time_changed";
-  partnerName?: string | null;
+  referee1Name?: string | null;
+  referee2Name?: string | null;
 }) {
-  const { refereeName, teamHome, teamAway, matchDate, matchTime, venue, league, reason, partnerName } = params;
+  const { refereeName, teamHome, teamAway, matchDate, matchTime, venue, league, reason, referee1Name, referee2Name } =
+    params;
+
+  const refereeLines = [
+    referee1Name ? `R1: ${referee1Name}` : null,
+    referee2Name ? `R2: ${referee2Name}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   const [year, month, day] = matchDate.split("-").map(Number);
   const dateLabel = new Date(year, month - 1, day).toLocaleDateString("sk-SK", {
@@ -144,7 +153,7 @@ export function nominationSentEmailHtml(params: {
       <p style="margin: 0 0 4px 0; font-weight: 700; font-size: 15px;">${teamHome} vs ${teamAway}</p>
       <p style="margin: 0 0 4px 0; font-size: 14px; color: #52525b;">${dateLabel}${matchTime ? `, ${matchTime.slice(0, 5)}` : ""}</p>
       <p style="margin: 0; font-size: 14px; color: #52525b;">${venue ?? "miesto zatiaľ neurčené"} · ${league}</p>
-      ${partnerName ? `<p style="margin: 8px 0 0 0; font-size: 14px; color: #52525b;">Spolurozhodca: <strong>${partnerName}</strong></p>` : ""}
+      ${refereeLines ? `<p style="margin: 8px 0 0 0; font-size: 14px; color: #52525b;">${refereeLines}</p>` : ""}
     </div>
     <a href="https://rozhodcovia-szfb.sk/nominations" style="display: inline-block; background: #2e3192; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 700; font-size: 14px;">Potvrdiť nomináciu</a>
   `);
