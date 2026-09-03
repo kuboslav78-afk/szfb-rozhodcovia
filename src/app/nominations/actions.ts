@@ -43,7 +43,7 @@ export async function importCompetition(competitionId: string) {
   for (const match of scraped) {
     const { data: existing } = await supabase
       .from("matches")
-      .select("id, match_time")
+      .select("id, match_time, referee1_id, referee1_status, referee2_id, referee2_status")
       .eq("external_competition_id", competition.id)
       .eq("external_match_id", match.externalMatchId)
       .maybeSingle();
@@ -66,9 +66,18 @@ export async function importCompetition(competitionId: string) {
     if (existing) {
       // Ak sa oproti predošlému importu zmenil čas, označíme to na
       // zvýraznenie v appke — kým to admin nepotvrdí (acknowledgeTimeChange).
+      // Rozhodcovia, ktorí už mali nomináciu potvrdenú na starý čas, ju musia
+      // znova schváliť — vrátime im stav na "sent" (odoslaná, čaká na potvrdenie).
       if (existing.match_time !== null && existing.match_time !== match.matchTime) {
         row.previous_match_time = existing.match_time;
         row.time_changed_at = new Date().toISOString();
+
+        if (existing.referee1_id && existing.referee1_status === "confirmed") {
+          row.referee1_status = "sent";
+        }
+        if (existing.referee2_id && existing.referee2_status === "confirmed") {
+          row.referee2_status = "sent";
+        }
       }
 
       const { error } = await supabase.from("matches").update(row).eq("id", existing.id);
