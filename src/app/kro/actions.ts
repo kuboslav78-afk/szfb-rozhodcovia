@@ -62,7 +62,25 @@ export async function getEmailRecipients(filter: RecipientFilter): Promise<Email
     .select("referee_id")
     .in("category", filter.categories);
 
-  const ids = Array.from(new Set((catRows ?? []).map((r) => r.referee_id as string)));
+  const idSet = new Set((catRows ?? []).map((r) => r.referee_id as string));
+
+  // Regionálni rozhodcovia si domáci región volia až pri prvom prihlásení —
+  // dovtedy nemajú v referee_categories žiadny riadok vôbec, takže by inak
+  // z výberu podľa regiónu úplne vypadli. Keď vyberáme aspoň jeden skutočný
+  // región (nie celoštátny), pripočítame aj týchto "zatiaľ nezaradených".
+  const selectingActualRegion = filter.categories.some((c) => c !== "celostatny");
+  if (selectingActualRegion) {
+    const [{ data: allCatRows }, { data: allActiveReferees }] = await Promise.all([
+      supabase.from("referee_categories").select("referee_id"),
+      supabase.from("referees").select("id").eq("active", true),
+    ]);
+    const anyCategoryIds = new Set((allCatRows ?? []).map((r) => r.referee_id as string));
+    for (const r of allActiveReferees ?? []) {
+      if (!anyCategoryIds.has(r.id)) idSet.add(r.id);
+    }
+  }
+
+  const ids = Array.from(idSet);
   if (ids.length === 0) return [];
 
   const { data } = await supabase

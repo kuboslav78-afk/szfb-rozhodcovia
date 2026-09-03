@@ -26,6 +26,13 @@ export function guessLicenseFromLabel(raw: string): LicenseLevel | null {
   if (isLicenseLevel(normalized.toUpperCase())) {
     return normalized.toUpperCase() as LicenseLevel;
   }
+
+  // "Licencia N (nováčik)", "Licencia C (obnovenie licencie)", "Licencia B ..." a pod.
+  const letterMatch = normalized.match(/licenci[au]\s+([ncb])\b/);
+  if (letterMatch && isLicenseLevel(letterMatch[1].toUpperCase())) {
+    return letterMatch[1].toUpperCase() as LicenseLevel;
+  }
+
   if (normalized.includes("celostat")) return "B";
   if (normalized.includes("regional") || normalized.includes("kvalifikacn")) return "C";
   if (normalized.includes("novacik")) return "N";

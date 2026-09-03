@@ -45,7 +45,7 @@ export async function importCompetition(competitionId: string) {
   for (const match of scraped) {
     const { data: existing } = await supabase
       .from("matches")
-      .select("id, match_time, referee1_id, referee1_status, referee2_id, referee2_status")
+      .select("id, match_date, match_time, referee1_id, referee1_status, referee2_id, referee2_status")
       .eq("external_competition_id", competition.id)
       .eq("external_match_id", match.externalMatchId)
       .maybeSingle();
@@ -66,15 +66,19 @@ export async function importCompetition(competitionId: string) {
     };
 
     if (existing) {
-      // Ak sa oproti predošlému importu zmenil čas, označíme to na
-      // zvýraznenie v appke — kým to admin nepotvrdí (acknowledgeTimeChange).
-      // Rozhodcovia, ktorí už mali nomináciu potvrdenú na starý čas, ju musia
+      // Ak sa oproti predošlému importu zmenil dátum a/alebo čas, označíme to
+      // na zvýraznenie v appke — kým to admin nepotvrdí (acknowledgeTimeChange).
+      // Rozhodcovia, ktorí už mali nomináciu potvrdenú na starý termín, ju musia
       // znova schváliť — vrátime im stav na "sent" (odoslaná, čaká na potvrdenie).
       // Postgres "time" stĺpec sa vracia ako "HH:MM:SS", scraper dáva "HH:MM" —
       // porovnávame len prvých 5 znakov, aby sa rovnaký čas nepovažoval za zmenu.
       const existingTime = existing.match_time?.slice(0, 5) ?? null;
-      if (existingTime !== null && existingTime !== match.matchTime) {
-        row.previous_match_time = existing.match_time;
+      const timeChanged = existingTime !== null && existingTime !== match.matchTime;
+      const dateChanged = existing.match_date !== match.matchDate;
+
+      if (timeChanged || dateChanged) {
+        if (timeChanged) row.previous_match_time = existing.match_time;
+        if (dateChanged) row.previous_match_date = existing.match_date;
         row.time_changed_at = new Date().toISOString();
 
         if (existing.referee1_id && existing.referee1_status === "confirmed") {
@@ -110,7 +114,7 @@ export async function importCompetition(competitionId: string) {
         if (!ref?.email) return null;
         return {
           to: ref.email,
-          subject: `Zmena času zápasu — potvrď nomináciu znova (${match.teamHome} vs ${match.teamAway})`,
+          subject: `Zmena termínu zápasu — potvrď nomináciu znova (${match.teamHome} vs ${match.teamAway})`,
           html: nominationSentEmailHtml({
             refereeName: ref.full_name,
             teamHome: match.teamHome,
@@ -219,7 +223,7 @@ export async function manualUpdateMatch(matchId: string, input: ManualMatchUpdat
   const { data: existing, error: fetchError } = await supabase
     .from("matches")
     .select(
-      "match_time, team_home, team_away, league, referee1_id, referee1_status, referee2_id, referee2_status",
+      "match_date, match_time, team_home, team_away, league, referee1_id, referee1_status, referee2_id, referee2_status",
     )
     .eq("id", matchId)
     .single();
@@ -235,8 +239,12 @@ export async function manualUpdateMatch(matchId: string, input: ManualMatchUpdat
 
   const notifyRefereeIds: string[] = [];
 
-  if (existing.match_time !== null && existing.match_time !== input.matchTime) {
-    row.previous_match_time = existing.match_time;
+  const timeChanged = existing.match_time !== null && existing.match_time !== input.matchTime;
+  const dateChanged = existing.match_date !== input.matchDate;
+
+  if (timeChanged || dateChanged) {
+    if (timeChanged) row.previous_match_time = existing.match_time;
+    if (dateChanged) row.previous_match_date = existing.match_date;
     row.time_changed_at = new Date().toISOString();
 
     if (existing.referee1_id && existing.referee1_status === "confirmed") {
@@ -255,13 +263,21 @@ export async function manualUpdateMatch(matchId: string, input: ManualMatchUpdat
   revalidatePath("/nominations");
 
   if (notifyRefereeIds.length > 0) {
+    const bothIds = [existing.referee1_id, existing.referee2_id].filter(
+      (id): id is string => Boolean(id),
+    );
     const { data: refs } = await supabase
       .from("referees")
       .select("id, full_name, email")
-      .in("id", notifyRefereeIds);
+      .in("id", bothIds);
 
-    for (const ref of refs ?? []) {
-      if (!ref.email) continue;
+    const byId = new Map((refs ?? []).map((r) => [r.id, r]));
+
+    for (const refereeId of notifyRefereeIds) {
+      const ref = byId.get(refereeId);
+      if (!ref?.email) continue;
+      const partnerId = existing.referee1_id === refereeId ? existing.referee2_id : existing.referee1_id;
+      const partner = partnerId ? byId.get(partnerId) : null;
       try {
         await sendEmail({
           to: ref.email,
@@ -275,6 +291,7 @@ export async function manualUpdateMatch(matchId: string, input: ManualMatchUpdat
             venue: input.venue,
             league: existing.league,
             reason: "time_changed",
+            partnerName: partner?.full_name ?? null,
           }),
         });
       } catch {
@@ -284,14 +301,14 @@ export async function manualUpdateMatch(matchId: string, input: ManualMatchUpdat
   }
 }
 
-/** Admin potvrdí, že si všimol zmenu času — zruší zvýraznenie. */
+/** Admin potvrdí, že si všimol zmenu termínu (dátumu a/alebo času) — zruší zvýraznenie. */
 export async function acknowledgeTimeChange(matchId: string) {
   await requireSuperAdmin();
 
   const supabase = await createClient();
   const { error } = await supabase
     .from("matches")
-    .update({ previous_match_time: null, time_changed_at: null })
+    .update({ previous_match_time: null, previous_match_date: null, time_changed_at: null })
     .eq("id", matchId);
 
   if (error) throw new Error(error.message);
@@ -374,13 +391,17 @@ export async function setMatchRefereeStatus(
       .single();
 
     const refereeId = match ? (slot === 1 ? match.referee1_id : match.referee2_id) : null;
+    const partnerId = match ? (slot === 1 ? match.referee2_id : match.referee1_id) : null;
 
     if (match && refereeId) {
-      const { data: ref } = await supabase
+      const partnerIds = [refereeId, ...(partnerId ? [partnerId] : [])];
+      const { data: refs } = await supabase
         .from("referees")
-        .select("full_name, email")
-        .eq("id", refereeId)
-        .single();
+        .select("id, full_name, email")
+        .in("id", partnerIds);
+
+      const ref = refs?.find((r) => r.id === refereeId);
+      const partner = partnerId ? refs?.find((r) => r.id === partnerId) : null;
 
       if (ref?.email) {
         try {
@@ -396,6 +417,7 @@ export async function setMatchRefereeStatus(
               venue: match.venue,
               league: match.league,
               reason: "new",
+              partnerName: partner?.full_name ?? null,
             }),
           });
         } catch {
