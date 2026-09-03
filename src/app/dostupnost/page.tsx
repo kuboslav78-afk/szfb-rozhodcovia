@@ -37,6 +37,7 @@ import {
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
 import { getCategoryAccess } from "@/lib/category-access";
+import { fetchAllRows } from "@/lib/paginate";
 import type { CategoryAccessLevel } from "@/app/admin-users/actions";
 import type { AvailabilityStatus } from "@/app/availability/actions";
 
@@ -136,6 +137,24 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
       (row.leagues as string[] | null) ?? [],
     ]),
   );
+
+  // Na ktoré dni mesiaca sú naimportované zápasy — editor podľa toho zvýrazní
+  // hracie dni, ktoré po presune zápasov ostali prázdne.
+  let datesWithMatches: string[] = [];
+  if (adminView) {
+    const rows = await fetchAllRows<{ match_date: string }>((from, to) =>
+      supabase
+        .from("matches")
+        .select("match_date")
+        .eq("category", category)
+        .gte("match_date", firstDay)
+        .lte("match_date", lastDay)
+        .order("match_date")
+        .order("id")
+        .range(from, to),
+    );
+    datesWithMatches = Array.from(new Set(rows.map((r) => r.match_date)));
+  }
 
   let refereeAvailability: Record<string, DayEntry> = {};
   type RefereeRow = {
@@ -487,6 +506,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
                 category={category}
                 initialMatchDays={matchDays}
                 initialLeagues={matchDayLeagues}
+                datesWithMatches={datesWithMatches}
               />
             )}
             <AdminOverview

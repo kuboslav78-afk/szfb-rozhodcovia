@@ -21,6 +21,8 @@ type Props = {
   category: Category;
   initialMatchDays: string[];
   initialLeagues: Record<string, string[]>;
+  /** Dni v tomto mesiaci, na ktoré sú naimportované zápasy. */
+  datesWithMatches: string[];
 };
 
 function formatSummary(dates: string[]) {
@@ -42,6 +44,7 @@ export function MatchDaysEditor({
   category,
   initialMatchDays,
   initialLeagues,
+  datesWithMatches,
 }: Props) {
   const [matchDays, setMatchDays] = useState(new Set(initialMatchDays));
   const [leagues, setLeaguesState] = useState(initialLeagues);
@@ -74,6 +77,14 @@ export function MatchDaysEditor({
   const availableLeagues = leaguesForCategory(category);
 
   const cells = monthGrid(monthKey);
+
+  // Hrací deň bez zápasov je buď zadaný dopredu (rozpis ešte nie je na szfb.sk),
+  // alebo zvyšok po zápase, ktorý sa presunul inam. Import dni nikdy nemaže, tak
+  // nech sú aspoň vidieť a admin sa vie rozhodnúť.
+  const withMatches = new Set(datesWithMatches);
+  const emptyDays = Array.from(matchDays)
+    .filter((date) => !withMatches.has(date))
+    .sort();
 
   function toggleLeague(date: string, code: string) {
     const current = leagues[date] ?? [];
@@ -148,6 +159,17 @@ export function MatchDaysEditor({
           {syncResult && (
             <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">{syncResult}</p>
           )}
+          {emptyDays.length > 0 && (
+            <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-500">
+              <span className="font-semibold">
+                {emptyDays.length === 1
+                  ? "1 hrací deň nemá žiadne zápasy"
+                  : `${emptyDays.length} hracích dní nemá žiadne zápasy`}
+              </span>{" "}
+              ({emptyDays.map((d) => Number(d.split("-")[2])).join(", ")}) — buď rozpis ešte
+              nie je na szfb.sk, alebo sa zápasy presunuli inam. Klikom ich odstrániš.
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
@@ -182,6 +204,7 @@ export function MatchDaysEditor({
 
           const dateStr = toDateStr(monthKey.year, monthKey.month, day);
           const isMatchDay = matchDays.has(dateStr);
+          const isEmpty = isMatchDay && !withMatches.has(dateStr);
 
           return (
             <button
@@ -189,13 +212,19 @@ export function MatchDaysEditor({
               type="button"
               onClick={() => handleClick(day)}
               disabled={isPending}
-              className={`flex h-12 w-full items-center justify-center rounded-lg text-sm font-medium transition disabled:cursor-default ${
-                isMatchDay
-                  ? "bg-brand-indigo text-white hover:bg-brand-indigo-dark"
-                  : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800"
+              title={isEmpty ? "Hrací deň bez naimportovaných zápasov" : undefined}
+              className={`relative flex h-12 w-full items-center justify-center rounded-lg text-sm font-medium transition disabled:cursor-default ${
+                isEmpty
+                  ? "bg-amber-500 text-white hover:bg-amber-600"
+                  : isMatchDay
+                    ? "bg-brand-indigo text-white hover:bg-brand-indigo-dark"
+                    : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800"
               }`}
             >
               {day}
+              {isEmpty && (
+                <span className="absolute right-1 top-0.5 text-[10px] leading-none">!</span>
+              )}
             </button>
           );
         })}
