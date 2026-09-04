@@ -15,8 +15,9 @@ export type BankQuestion = {
   topic: string | null;
   rule_reference: string | null;
   video_url: string | null;
+  explanation: string | null;
   active: boolean;
-  answerCount: number;
+  answers: { answer: string; isCorrect: boolean }[];
 };
 
 type Props = {
@@ -39,6 +40,17 @@ export function QuestionBank({ questions, enabled }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(enabled);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [allOpen, setAllOpen] = useState(false);
+
+  function toggle(id: string) {
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const query = normalize(search.trim());
   const visible = query
@@ -160,9 +172,21 @@ export function QuestionBank({ questions, enabled }: Props) {
           <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
             Banka otázok
           </h2>
-          <span className="text-xs text-zinc-400">
-            {activeCount} aktívnych z {questions.length}
-          </span>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setAllOpen(!allOpen);
+                setOpen(allOpen ? new Set() : new Set(questions.map((q) => q.id)));
+              }}
+              className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              {allOpen ? "Zbaliť všetko" : "Rozbaliť všetko"}
+            </button>
+            <span className="text-xs text-zinc-400">
+              {activeCount} aktívnych z {questions.length}
+            </span>
+          </div>
         </div>
 
         <input
@@ -174,23 +198,63 @@ export function QuestionBank({ questions, enabled }: Props) {
         />
 
         <div className="mt-4 flex flex-col gap-px bg-zinc-100 dark:bg-zinc-900">
-          {visible.map((q) => (
-            <div
-              key={q.id}
-              className="flex items-start gap-3 bg-white px-1 py-3 dark:bg-zinc-950"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="text-sm text-zinc-800 dark:text-zinc-200">{q.question}</div>
+          {visible.map((q, index) => (
+            <div key={q.id} className="flex items-start gap-3 bg-white px-1 py-3 dark:bg-zinc-950">
+              <button
+                type="button"
+                onClick={() => toggle(q.id)}
+                className="min-w-0 flex-1 text-left"
+              >
+                <div className="text-sm text-zinc-800 dark:text-zinc-200">
+                  <span className="mr-1.5 text-zinc-400">{index + 1}.</span>
+                  {q.question}
+                </div>
                 <div className="mt-0.5 flex flex-wrap gap-2 text-[11px] text-zinc-400">
                   {q.topic && <span>{q.topic}</span>}
-                  {q.rule_reference && <span>· pravidlo {q.rule_reference}</span>}
-                  <span>· {q.answerCount} možností</span>
+                  {q.rule_reference && <span>· {q.rule_reference}</span>}
+                  <span>· {q.answers.length} možností</span>
                   {q.video_url && <span>· 🎬 video</span>}
                   {!q.active && (
                     <span className="font-semibold text-amber-600">· vyradená</span>
                   )}
+                  <span className="text-zinc-300 dark:text-zinc-600">
+                    {open.has(q.id) ? "▲" : "▼"}
+                  </span>
                 </div>
-              </div>
+
+                {open.has(q.id) && (
+                  <div className="mt-2 flex flex-col gap-1 border-l-2 border-zinc-100 pl-3 dark:border-zinc-800">
+                    {q.answers.map((a, i) => (
+                      <div
+                        key={i}
+                        className={`text-xs ${
+                          a.isCorrect
+                            ? "font-semibold text-emerald-700 dark:text-emerald-400"
+                            : "text-zinc-500"
+                        }`}
+                      >
+                        {a.isCorrect ? "✓" : "○"} {a.answer}
+                      </div>
+                    ))}
+                    {q.explanation && (
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-500 italic">
+                        {q.explanation}
+                      </p>
+                    )}
+                    {q.video_url && (
+                      <a
+                        href={q.video_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-1 text-[11px] text-brand-indigo hover:underline"
+                      >
+                        {q.video_url}
+                      </a>
+                    )}
+                  </div>
+                )}
+              </button>
               <button
                 type="button"
                 disabled={busy}

@@ -76,28 +76,39 @@ export default async function TestovaniePage() {
         topic: string | null;
         rule_reference: string | null;
         video_url: string | null;
+        explanation: string | null;
         active: boolean;
       }>((f, t) =>
         supabase
           .from("test_questions")
-          .select("id, question, topic, rule_reference, video_url, active")
+          .select("id, question, topic, rule_reference, video_url, explanation, active")
           .order("topic")
           .order("created_at")
           .range(f, t),
       ),
-      fetchAllRows<{ question_id: string }>((f, t) =>
-        supabase.from("test_answers").select("question_id").order("question_id").range(f, t),
+      fetchAllRows<{ question_id: string; answer: string; is_correct: boolean; position: number }>(
+        (f, t) =>
+          supabase
+            .from("test_answers")
+            .select("question_id, answer, is_correct, position")
+            .order("question_id")
+            .order("position")
+            .range(f, t),
       ),
     ]);
 
-    const answerCounts = new Map<string, number>();
+    const answersByQuestion = new Map<string, { answer: string; isCorrect: boolean }[]>();
     for (const a of answerRows) {
-      answerCounts.set(a.question_id, (answerCounts.get(a.question_id) ?? 0) + 1);
+      if (!answersByQuestion.has(a.question_id)) answersByQuestion.set(a.question_id, []);
+      answersByQuestion.get(a.question_id)!.push({
+        answer: a.answer,
+        isCorrect: a.is_correct,
+      });
     }
 
     const questions: BankQuestion[] = questionRows.map((q) => ({
       ...q,
-      answerCount: answerCounts.get(q.id) ?? 0,
+      answers: answersByQuestion.get(q.id) ?? [],
     }));
 
     return (
