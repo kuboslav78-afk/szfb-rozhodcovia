@@ -181,6 +181,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
   let leagueRates: LeagueRate[] = [];
   let minHourlyWage = DEFAULT_MIN_HOURLY_WAGE;
   let venueCount = 0;
+  let venuesWithAddress = 0;
   let unmatchedVenues: string[] = [];
   let allCategoryAccess: Record<string, Partial<Record<Category, CategoryAccessLevel>>> = {};
 
@@ -232,8 +233,12 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
     // Ktoré haly zo zápasov sa nedajú spárovať s adresárom — bez adresy sa
     // výkaz k príkaznej zmluve vygenerovať nedá.
     const [venueRows, matchVenues] = await Promise.all([
-      fetchAllRows<{ match_key: string }>((from, to) =>
-        supabase.from("venues").select("match_key").order("name").range(from, to),
+      fetchAllRows<{ match_key: string; full_address: string | null }>((from, to) =>
+        supabase
+          .from("venues")
+          .select("match_key, full_address")
+          .order("name")
+          .range(from, to),
       ),
       fetchAllRows<{ venue: string }>((from, to) =>
         supabase
@@ -246,6 +251,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
     ]);
 
     venueCount = venueRows.length;
+    venuesWithAddress = venueRows.filter((v) => v.full_address).length;
     const knownKeys = new Set(venueRows.map((v) => v.match_key));
     unmatchedVenues = Array.from(
       new Set(
@@ -534,7 +540,11 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
               initialCategories={allRefereeCategories}
             />
             <RefereeDataTable referees={refereeData} categories={allRefereeCategories} />
-            <VenuesPanel total={venueCount} unmatched={unmatchedVenues} />
+            <VenuesPanel
+              total={venueCount}
+              withAddress={venuesWithAddress}
+              unmatched={unmatchedVenues}
+            />
             <RatesManager rates={leagueRates} minHourlyWage={minHourlyWage} />
             <CategoryAdminsManager
               referees={allReferees}

@@ -25,3 +25,9 @@ create policy "venues_select_authenticated" on venues
   for select using (auth.uid() is not null);
 create policy "venues_write_admin" on venues
   for all using (is_admin()) with check (is_admin());
+
+-- Zoznam hál dáva len ulicu bez čísla. Plnú adresu (ulica, súpisné číslo, PSČ,
+-- mesto) má detail haly v meta tagu og:description — doťahuje sa druhým krokom,
+-- lebo je to jedna požiadavka na halu. Výkaz k príkaznej zmluve potrebuje presne ju.
+alter table venues add column if not exists detail_url text;
+alter table venues add column if not exists full_address text;

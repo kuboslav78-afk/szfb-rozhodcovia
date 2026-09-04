@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { scrapeVenues } from "@/lib/szfb-venues";
+import { scrapeVenues, scrapeVenueAddress } from "@/lib/szfb-venues";
 
 async function requireSuperAdmin() {
   const supabase = await createClient();
@@ -43,6 +43,7 @@ export async function syncVenues() {
       match_key: v.matchKey,
       street: v.street,
       city: v.city,
+      detail_url: v.detailUrl,
       updated_at: new Date().toISOString(),
     })),
     { onConflict: "name" },
@@ -52,4 +53,50 @@ export async function syncVenues() {
 
   revalidatePath("/dostupnost");
   return { total: scraped.length };
+}
+
+/**
+ * Doplní plné adresy (ulica so súpisným číslom a PSČ) z detailov hál. Je to jedna
+ * požiadavka na halu, takže sa to robí po dávkach — volaj opakovane, kým `remaining`
+ * neklesne na 0. Medzi požiadavkami je pauza, nech szfb.sk nezaťažujeme nárazovo.
+ */
+export async function fetchVenueAddresses(limit = 25) {
+  const supabase = await requireSuperAdmin();
+
+  const { data: pending } = await supabase
+    .from("venues")
+    .select("name, detail_url")
+    .is("full_address", null)
+    .not("detail_url", "is", null)
+    .order("name")
+    .limit(limit);
+
+  const batch = pending ?? [];
+  let filled = 0;
+  let failed = 0;
+
+  for (const venue of batch) {
+    const address = await scrapeVenueAddress(venue.detail_url as string);
+
+    if (address) {
+      await supabase
+        .from("venues")
+        .update({ full_address: address, updated_at: new Date().toISOString() })
+        .eq("name", venue.name);
+      filled++;
+    } else {
+      failed++;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 120));
+  }
+
+  const { count: remaining } = await supabase
+    .from("venues")
+    .select("name", { count: "exact", head: true })
+    .is("full_address", null)
+    .not("detail_url", "is", null);
+
+  revalidatePath("/dostupnost");
+  return { processed: batch.length, filled, failed, remaining: remaining ?? 0 };
 }
