@@ -242,9 +242,26 @@ export async function fillPrikaznaTemplate(
   });
 
   fillBulkOrder(workbook, month, referees);
+  keepOnlyOutputSheets(workbook);
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);
+}
+
+/**
+ * Hotová výplata má obsahovať len dva hárky — formuláre rozhodcov a hromadný
+ * príkaz. Zvyšok šablóny (vzory, cenníky, výkazy jednotlivých súťaží) je pracovná
+ * pomôcka KRO a do odovzdávaného súboru nepatrí.
+ */
+function keepOnlyOutputSheets(workbook: ExcelJS.Workbook) {
+  const keep = (name: string) => {
+    const lower = name.toLowerCase();
+    return lower.includes("formul") || lower.includes("hromadn");
+  };
+
+  for (const sheet of [...workbook.worksheets]) {
+    if (!keep(sheet.name)) workbook.removeWorksheet(sheet.id);
+  }
 }
 
 /**
