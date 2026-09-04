@@ -211,6 +211,10 @@ export async function fillPrikaznaTemplate(
   referees.forEach((referee, index) => {
     const start = blockStarts[index];
 
+    // Vzor fontov berieme z prvého bloku — jediného, ktorý má KRO naformátovaný
+    // tak, ako vyzerajú ručne vyplnené výkazy. Ostatné bloky majú všade desiatku.
+    normaliseRowFonts(sheet, start, blockStarts[0] + 6);
+
     sheet.getCell(`A${start + 1}`).value = `Mesiac: ${monthLabel}`;
     sheet.getCell(`D${start + 2}`).value = referee.contractNumber ?? "";
     sheet.getCell(`A${start + 3}`).value = `Meno a priezvisko: ${referee.fullName}`;
@@ -261,6 +265,32 @@ function keepOnlyOutputSheets(workbook: ExcelJS.Workbook) {
 
   for (const sheet of [...workbook.worksheets]) {
     if (!keep(sheet.name)) workbook.removeWorksheet(sheet.id);
+  }
+}
+
+/**
+ * Prázdna šablóna má správne veľkosti písma len v prvom riadku prvého bloku —
+ * inde majú stĺpce s adresou rozhodcu a halou desiatku namiesto osmičky. V ručne
+ * vyplnených výkazoch (hárok "PZ VZOR") má každý vyplnený riadok font ako ten
+ * jeden, tak ho prenesieme na všetky riadky všetkých blokov.
+ *
+ * Rámčekov sa nedotýkame — tie sú v šablóne správne, prvý riadok má zámerne
+ * hrubšiu hornú čiaru pod hlavičkou.
+ */
+function normaliseRowFonts(
+  sheet: ExcelJS.Worksheet,
+  blockStart: number,
+  sourceRow: number,
+) {
+  const firstMatchRow = blockStart + 6;
+
+  for (const column of ["B", "C", "D", "E", "F", "G", "H", "I", "J"]) {
+    const source = sheet.getCell(`${column}${sourceRow}`).font;
+    if (!source) continue;
+
+    for (let i = 0; i < MATCH_ROWS; i++) {
+      sheet.getCell(`${column}${firstMatchRow + i}`).font = { ...source };
+    }
   }
 }
 
