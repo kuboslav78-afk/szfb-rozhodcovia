@@ -29,6 +29,8 @@ import { RefereeCategoriesManager } from "@/components/RefereeCategoriesManager"
 import { CategoryAdminsManager } from "@/components/CategoryAdminsManager";
 import { RefereeDataTable, type RefereeDataRow } from "@/components/RefereeDataTable";
 import { RatesManager } from "@/components/RatesManager";
+import { VenuesPanel } from "@/components/VenuesPanel";
+import { venueMatchKey } from "@/lib/szfb-venues";
 import { getLeagueRates, getMinHourlyWage, DEFAULT_MIN_HOURLY_WAGE, type LeagueRate } from "@/lib/rates";
 import { AddRefereeForm } from "@/components/AddRefereeForm";
 import { ImportRefereesForm } from "@/components/ImportRefereesForm";
@@ -178,6 +180,8 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
   let refereeData: RefereeDataRow[] = [];
   let leagueRates: LeagueRate[] = [];
   let minHourlyWage = DEFAULT_MIN_HOURLY_WAGE;
+  let venueCount = 0;
+  let unmatchedVenues: string[] = [];
   let allCategoryAccess: Record<string, Partial<Record<Category, CategoryAccessLevel>>> = {};
 
   if (canSeeAllCategories && (adminView || isAdminSection)) {
@@ -224,6 +228,33 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
       getLeagueRates(supabase),
       getMinHourlyWage(supabase),
     ]);
+
+    // Ktoré haly zo zápasov sa nedajú spárovať s adresárom — bez adresy sa
+    // výkaz k príkaznej zmluve vygenerovať nedá.
+    const [venueRows, matchVenues] = await Promise.all([
+      fetchAllRows<{ match_key: string }>((from, to) =>
+        supabase.from("venues").select("match_key").order("name").range(from, to),
+      ),
+      fetchAllRows<{ venue: string }>((from, to) =>
+        supabase
+          .from("matches")
+          .select("venue")
+          .not("venue", "is", null)
+          .order("venue")
+          .range(from, to),
+      ),
+    ]);
+
+    venueCount = venueRows.length;
+    const knownKeys = new Set(venueRows.map((v) => v.match_key));
+    unmatchedVenues = Array.from(
+      new Set(
+        matchVenues
+          .map((m) => m.venue?.trim())
+          .filter((v): v is string => Boolean(v))
+          .filter((v) => !knownKeys.has(venueMatchKey(v))),
+      ),
+    ).sort();
   }
 
   if (adminView) {
@@ -503,6 +534,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
               initialCategories={allRefereeCategories}
             />
             <RefereeDataTable referees={refereeData} categories={allRefereeCategories} />
+            <VenuesPanel total={venueCount} unmatched={unmatchedVenues} />
             <RatesManager rates={leagueRates} minHourlyWage={minHourlyWage} />
             <CategoryAdminsManager
               referees={allReferees}
