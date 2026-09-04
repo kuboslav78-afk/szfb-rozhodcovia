@@ -243,10 +243,30 @@ export async function fillPrikaznaTemplate(
         result: match.fee,
       } as ExcelJS.CellFormulaValue;
     }
+
+    // "spolu" má v šablóne vzorec, ale uložený výsledok buď chýba, alebo je
+    // z pôvodnej ukážky. "celkom" nemá vzorec vôbec — doplníme oboje, nech
+    // súčet sedí aj predtým, než Excel prepočíta.
+    const sumRow = start + 28;
+    const totalRow = start + 29;
+
+    sheet.getCell(`J${sumRow}`).value = {
+      formula: `SUM(J${start + 6}:J${start + 27})`,
+      result: referee.total,
+    } as ExcelJS.CellFormulaValue;
+
+    sheet.getCell(`J${totalRow}`).value = {
+      formula: `J${sumRow}`,
+      result: referee.total,
+    } as ExcelJS.CellFormulaValue;
   });
 
   fillBulkOrder(workbook, month, referees);
   keepOnlyOutputSheets(workbook);
+
+  // Excel si má vzorce prepočítať hneď po otvorení — inak by ukazoval hodnoty
+  // uložené v šablóne, ktoré s novými dátami nemajú nič spoločné.
+  workbook.calcProperties.fullCalcOnLoad = true;
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);
