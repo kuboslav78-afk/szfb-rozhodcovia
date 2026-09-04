@@ -19,17 +19,22 @@ $$;
 -- Banka otázok vrátane správnych odpovedí. Bežný rozhodca na tieto tabuľky
 -- naďalej nemá prístup — otázky mu vydáva get_test_questions() bez príznaku
 -- správnosti, inak by si odpoveď prečítal cez konzolu prehliadača.
+drop policy if exists "test_questions_select_kro" on test_questions;
 create policy "test_questions_select_kro" on test_questions
   for select using (is_kro());
+
+drop policy if exists "test_answers_select_kro" on test_answers;
 create policy "test_answers_select_kro" on test_answers
   for select using (is_kro());
 
 -- Výsledky všetkých rozhodcov.
 drop policy if exists "test_assignments_own" on test_assignments;
+drop policy if exists "test_assignments_own_or_kro" on test_assignments;
 create policy "test_assignments_own_or_kro" on test_assignments
   for select using (referee_id = auth.uid() or is_kro());
 
 drop policy if exists "test_responses_own" on test_responses;
+drop policy if exists "test_responses_own_or_kro" on test_responses;
 create policy "test_responses_own_or_kro" on test_responses
   for select using (
     is_kro()
