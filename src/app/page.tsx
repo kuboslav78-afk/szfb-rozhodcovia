@@ -5,6 +5,7 @@ import { PageTitle } from "@/components/PageTitle";
 import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
 import { ProfileCompletionPrompt } from "@/components/ProfileCompletionPrompt";
 import { WeeklyTestPrompt } from "@/components/WeeklyTestPrompt";
+import { AvailabilityPrompt } from "@/components/AvailabilityPrompt";
 import { isTestingEnabled } from "@/lib/settings";
 import { isKroMember } from "@/lib/kro";
 import { missingProfileFields } from "@/lib/profile-completeness";
@@ -26,6 +27,50 @@ import type { Category } from "@/lib/categories";
 
 function singleParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+type NominationSlots = {
+  referee1_id: string | null;
+  referee1_status: string;
+  referee2_id: string | null;
+  referee2_status: string;
+};
+
+/**
+ * Prečo zápas ešte nie je vybavený. Priradenie rozhodcu samo osebe nestačí —
+ * kým nomináciu nepotvrdí, zápas je stále otvorený.
+ */
+function nominationState(match: NominationSlots) {
+  const slots = [
+    { id: match.referee1_id, status: match.referee1_status },
+    { id: match.referee2_id, status: match.referee2_status },
+  ];
+
+  if (slots.some((s) => s.id && s.status === "rejected")) {
+    return {
+      label: "Zamietnuté",
+      className: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
+    };
+  }
+
+  if (slots.some((s) => !s.id)) {
+    return {
+      label: "Chýba rozhodca",
+      className: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
+    };
+  }
+
+  if (slots.some((s) => s.status === "draft")) {
+    return {
+      label: "Neodoslané",
+      className: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
+    };
+  }
+
+  return {
+    label: "Čaká na potvrdenie",
+    className: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+  };
 }
 
 function formatDateLabel(dateStr: string) {
@@ -85,13 +130,20 @@ export default async function HomePage(props: PageProps<"/">) {
     const nominationWindow = twoWeekWindow();
     const overallEarnings = await getOverallEarnings(supabase);
 
-    const [{ data: needsNominationRows }, { count: needsNominationCount }, { count: awaitingResponseCount }] =
+    // Zápas je vybavený, až keď obaja rozhodcovia nomináciu potvrdili. Samotné
+    // priradenie mena nestačí — rozhodca ju ešte môže zamietnuť alebo neodpovedať.
+    const OPEN =
+      "referee1_id.is.null,referee2_id.is.null,referee1_status.neq.confirmed,referee2_status.neq.confirmed";
+
+    const [{ data: openRows }, { count: missingRefereeCount }, { count: awaitingResponseCount }] =
       await Promise.all([
         supabase
           .from("matches")
-          .select("id, category, league, team_home, team_away, match_date, match_time")
+          .select(
+            "id, category, league, team_home, team_away, match_date, match_time, referee1_id, referee1_status, referee2_id, referee2_status",
+          )
           .in("category", queryCategories)
-          .or("referee1_id.is.null,referee2_id.is.null")
+          .or(OPEN)
           .gte("match_date", nominationWindow.from)
           .lte("match_date", nominationWindow.to)
           .order("match_date")
@@ -112,6 +164,14 @@ export default async function HomePage(props: PageProps<"/">) {
           .gte("match_date", nominationWindow.from)
           .lte("match_date", nominationWindow.to),
       ]);
+
+    const { count: openCount } = await supabase
+      .from("matches")
+      .select("id", { count: "exact", head: true })
+      .in("category", queryCategories)
+      .or(OPEN)
+      .gte("match_date", nominationWindow.from)
+      .lte("match_date", nominationWindow.to);
 
     return (
       <div className="lg:flex">
@@ -158,13 +218,15 @@ export default async function HomePage(props: PageProps<"/">) {
                     </a>
                   </div>
 
-                  {(needsNominationRows ?? []).length === 0 ? (
+                  {(openRows ?? []).length === 0 ? (
                     <p className="py-6 text-center text-sm text-zinc-400">
-                      V najbližších 2 týždňoch majú všetky zápasy obsadených oboch rozhodcov.
+                      V najbližších 2 týždňoch majú všetky zápasy oboch rozhodcov potvrdených.
                     </p>
                   ) : (
                     <div className="flex flex-col gap-px bg-zinc-100 dark:bg-zinc-900">
-                      {(needsNominationRows ?? []).map((m) => (
+                      {(openRows ?? []).map((m) => {
+                        const state = nominationState(m);
+                        return (
                         <a
                           key={m.id}
                           href={`/nominations?category=${m.category}`}
@@ -186,11 +248,14 @@ export default async function HomePage(props: PageProps<"/">) {
                               {m.league} · {CATEGORY_LABELS[m.category as Category]}
                             </div>
                           </div>
-                          <span className="shrink-0 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-700 uppercase dark:bg-red-950 dark:text-red-300">
-                            Chýba rozhodca
+                          <span
+                            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase ${state.className}`}
+                          >
+                            {state.label}
                           </span>
                         </a>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -218,9 +283,15 @@ export default async function HomePage(props: PageProps<"/">) {
                   <div className="mb-4 text-xs text-zinc-400">Najbližšie 2 týždne</div>
                   <div className="flex flex-col gap-3">
                     <div className="flex items-baseline justify-between">
+                      <span className="text-sm text-zinc-500">Nevybavené</span>
+                      <span className="font-headline text-xl text-zinc-800 dark:text-zinc-100">
+                        {openCount ?? 0}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between">
                       <span className="text-sm text-zinc-500">Bez rozhodcu</span>
                       <span className="font-headline text-xl text-red-600 dark:text-red-400">
-                        {needsNominationCount ?? 0}
+                        {missingRefereeCount ?? 0}
                       </span>
                     </div>
                     <div className="flex items-baseline justify-between">
@@ -317,6 +388,49 @@ export default async function HomePage(props: PageProps<"/">) {
   // Členovia KRO testy nevypĺňajú, tak ich pripomienkou neotravujeme.
   const kroMember = await isKroMember(supabase, referee.id, referee.role);
 
+  // Nevyplnená dostupnosť na najbližšie hracie dni. Pozeráme sa po koniec
+  // budúceho mesiaca — hracie dni sú nastavené aj na pol sezóny dopredu a
+  // upozorňovať v septembri na apríl by bol len šum.
+  let unfilledAvailability: { count: number; nearest: string; month: string } | null = null;
+
+  if (!isViewer && myCategories.length > 0) {
+    const now = new Date();
+    const horizon = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+    const horizonStr = `${horizon.getFullYear()}-${String(horizon.getMonth() + 1).padStart(2, "0")}-${String(horizon.getDate()).padStart(2, "0")}`;
+
+    const [{ data: upcomingDays }, { data: filledRows }] = await Promise.all([
+      supabase
+        .from("match_days")
+        .select("match_date, category")
+        .in("category", myCategories)
+        .gte("match_date", today)
+        .lte("match_date", horizonStr)
+        .order("match_date"),
+      supabase
+        .from("availability")
+        .select("available_date, category")
+        .eq("referee_id", referee.id)
+        .gte("available_date", today)
+        .lte("available_date", horizonStr),
+    ]);
+
+    const filled = new Set(
+      (filledRows ?? []).map((r) => `${r.available_date}|${r.category}`),
+    );
+    const unfilled = (upcomingDays ?? []).filter(
+      (d) => !filled.has(`${d.match_date}|${d.category}`),
+    );
+
+    if (unfilled.length > 0) {
+      const nearest = unfilled[0].match_date as string;
+      unfilledAvailability = {
+        count: unfilled.length,
+        nearest,
+        month: nearest.slice(0, 7),
+      };
+    }
+  }
+
   if (testingEnabled && !kroMember) {
     const { data: assignment } = await supabase
       .from("test_assignments")
@@ -361,6 +475,14 @@ export default async function HomePage(props: PageProps<"/">) {
             missingFields={missingFields}
             missingCriminalRecord={missingCriminalRecord}
           />
+
+          {unfilledAvailability && (
+            <AvailabilityPrompt
+              count={unfilledAvailability.count}
+              nearest={unfilledAvailability.nearest}
+              monthParam={unfilledAvailability.month}
+            />
+          )}
 
           {weeklyTest.pending && <WeeklyTestPrompt started={weeklyTest.started} />}
 
