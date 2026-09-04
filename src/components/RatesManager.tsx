@@ -97,14 +97,20 @@ function RateRow({
         <span className="ml-2 text-xs text-zinc-500">{label}</span>
       </td>
       <td className="px-2 py-2">
-        <select
-          value={current.time_type}
-          onChange={(e) => patch({ time_type: e.target.value as TimeType })}
-          className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-xs text-zinc-700 outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-        >
-          <option value="hruby">{TIME_TYPE_LABELS.hruby}</option>
-          <option value="cisty">{TIME_TYPE_LABELS.cisty}</option>
-        </select>
+        {hasVariants ? (
+          <select
+            value={current.time_type}
+            onChange={(e) => patch({ time_type: e.target.value as TimeType })}
+            className="rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-xs text-zinc-700 outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          >
+            <option value="hruby">{TIME_TYPE_LABELS.hruby}</option>
+            <option value="cisty">{TIME_TYPE_LABELS.cisty}</option>
+          </select>
+        ) : (
+          // Celoštátne súťaže majú jedinú odmenu — prepínač by tam len zvádzal
+          // k tomu, že niečo robí.
+          <span className="text-[11px] text-zinc-400">—</span>
+        )}
       </td>
       <td className="px-2 py-2 text-right">
         {hasVariants ? (
