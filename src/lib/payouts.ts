@@ -211,9 +211,9 @@ export async function fillPrikaznaTemplate(
   referees.forEach((referee, index) => {
     const start = blockStarts[index];
 
-    // Vzor fontov berieme z prvého bloku — jediného, ktorý má KRO naformátovaný
-    // tak, ako vyzerajú ručne vyplnené výkazy. Ostatné bloky majú všade desiatku.
-    normaliseRowFonts(sheet, start, blockStarts[0] + 6);
+    // Vzor berieme z prvého bloku — jediného, ktorý má KRO naformátovaný tak, ako
+    // vyzerajú ručne vyplnené výkazy.
+    normaliseRowStyles(sheet, start, blockStarts[0]);
 
     sheet.getCell(`A${start + 1}`).value = `Mesiac: ${monthLabel}`;
     sheet.getCell(`D${start + 2}`).value = referee.contractNumber ?? "";
@@ -289,29 +289,39 @@ function keepOnlyOutputSheets(workbook: ExcelJS.Workbook) {
 }
 
 /**
- * Prázdna šablóna má správne veľkosti písma len v prvom riadku prvého bloku —
- * inde majú stĺpce s adresou rozhodcu a halou desiatku namiesto osmičky. V ručne
- * vyplnených výkazoch (hárok "PZ VZOR") má každý vyplnený riadok font ako ten
- * jeden, tak ho prenesieme na všetky riadky všetkých blokov.
+ * Prázdna šablóna je naformátovaná dôsledne len v prvom riadku prvého bloku:
+ * inde majú stĺpce s adresou rozhodcu a halou desiatku namiesto osmičky a stĺpec
+ * CELKOM stráca od tretieho riadku peňažný formát, takže by sa 60,00 vypísalo
+ * ako 60. Prenesieme teda písmo, číselný formát aj zarovnanie na všetky riadky.
  *
- * Rámčekov sa nedotýkame — tie sú v šablóne správne, prvý riadok má zámerne
- * hrubšiu hornú čiaru pod hlavičkou.
+ * Rámčekov a výplní sa nedotýkame — tie sú v šablóne správne, prvý riadok má
+ * zámerne hrubšiu hornú čiaru pod hlavičkou.
  */
-function normaliseRowFonts(
+function normaliseRowStyles(
   sheet: ExcelJS.Worksheet,
   blockStart: number,
-  sourceRow: number,
+  sourceBlockStart: number,
 ) {
-  const firstMatchRow = blockStart + 6;
+  const columns = ["B", "C", "D", "E", "F", "G", "H", "I", "J"];
 
-  for (const column of ["B", "C", "D", "E", "F", "G", "H", "I", "J"]) {
-    const source = sheet.getCell(`${column}${sourceRow}`).font;
-    if (!source) continue;
+  const copyStyle = (sourceRow: number, targetRow: number) => {
+    for (const column of columns) {
+      const source = sheet.getCell(`${column}${sourceRow}`);
+      const target = sheet.getCell(`${column}${targetRow}`);
 
-    for (let i = 0; i < MATCH_ROWS; i++) {
-      sheet.getCell(`${column}${firstMatchRow + i}`).font = { ...source };
+      if (source.font) target.font = { ...source.font };
+      if (source.numFmt) target.numFmt = source.numFmt;
+      if (source.alignment) target.alignment = { ...source.alignment };
     }
+  };
+
+  for (let i = 0; i < MATCH_ROWS; i++) {
+    copyStyle(sourceBlockStart + 6, blockStart + 6 + i);
   }
+
+  // Riadky so súčtami majú vlastný formát, ten berieme z ich náprotivkov.
+  copyStyle(sourceBlockStart + 28, blockStart + 28);
+  copyStyle(sourceBlockStart + 29, blockStart + 29);
 }
 
 /**
