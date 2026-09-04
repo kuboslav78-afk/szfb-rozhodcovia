@@ -135,7 +135,10 @@ export async function collectPayouts(
     .map((r) => ({
       ...r,
       matches: r.matches.sort((a, b) => a.matchDate.localeCompare(b.matchDate)),
-    }));
+    }))
+    // Zoradenie robíme tu, nie v databáze — porovnanie podľa slovenskej abecedy
+    // dá pri diakritike iné poradie než predvolené triedenie Postgresu.
+    .sort((a, b) => a.fullName.localeCompare(b.fullName, "sk"));
 }
 
 /** Rovnaká normalizácia ako v szfb-venues, len bez importu server-only modulu. */
