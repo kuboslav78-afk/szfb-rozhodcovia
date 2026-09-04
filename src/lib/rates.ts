@@ -9,16 +9,48 @@ export const TIME_TYPE_LABELS: Record<TimeType, string> = {
 
 export type LeagueRate = {
   league: string;
+  /** Ktorý variant je pre túto ligu práve platný. */
   time_type: TimeType;
-  /** Odmena za zápas pre SZČO aj rámcovú príkaznú zmluvu. */
+  /** Celoštátne súťaže: jediná odmena, varianty nemajú. */
   fee: number | null;
   /** Len SZČO: príplatok za cestu mimo mesta bydliska (pri SZČO sídla firmy). */
   travel_supplement: number | null;
-  /** Cieľová suma vo výkaze dobrovoľníckej činnosti. */
-  volunteer_fee: number | null;
-  volunteer_meal: number | null;
-  volunteer_max_per_day: number | null;
+  /** Regionálne súťaže: obe varianty, medzi ktorými time_type vyberá. */
+  fee_hruby: number | null;
+  fee_cisty: number | null;
+  meal_hruby: number | null;
+  meal_cisty: number | null;
+  max_per_day_hruby: number | null;
+  max_per_day_cisty: number | null;
 };
+
+export type ResolvedRate = {
+  /** Odmena za zápas — rovnaká pre dobrovoľníka, SZČO aj rámcovú príkaznú. */
+  fee: number | null;
+  /** Stravné vo výkaze dobrovoľníckej činnosti. */
+  meal: number | null;
+  maxPerDay: number | null;
+};
+
+/**
+ * Sumy platné pre práve nastavený hrací čas. Celoštátne súťaže varianty nemajú,
+ * tam platí jediná odmena; pri regionálnych vyberá time_type.
+ */
+export function resolveRate(rate: LeagueRate): ResolvedRate {
+  const hasVariants = rate.fee_hruby != null || rate.fee_cisty != null;
+
+  if (!hasVariants) {
+    return { fee: rate.fee, meal: null, maxPerDay: null };
+  }
+
+  const cisty = rate.time_type === "cisty";
+
+  return {
+    fee: cisty ? rate.fee_cisty : rate.fee_hruby,
+    meal: cisty ? rate.meal_cisty : rate.meal_hruby,
+    maxPerDay: cisty ? rate.max_per_day_cisty : rate.max_per_day_hruby,
+  };
+}
 
 export const DEFAULT_MIN_HOURLY_WAGE = 5.259;
 
@@ -44,13 +76,13 @@ export async function getMinHourlyWage(supabase: SupabaseClient): Promise<number
  * (napr. M2 hrubý čas: (25,00 − 3,97) / 5,259 = 4,00 hod).
  */
 export function volunteerBreakdown(
-  rate: Pick<LeagueRate, "volunteer_fee" | "volunteer_meal">,
+  resolved: ResolvedRate,
   minHourlyWage: number,
 ): { hours: number; timeCompensation: number; meal: number; total: number } | null {
-  if (rate.volunteer_fee == null) return null;
+  if (resolved.fee == null) return null;
 
-  const meal = rate.volunteer_meal ?? 0;
-  const remainder = rate.volunteer_fee - meal;
+  const meal = resolved.meal ?? 0;
+  const remainder = resolved.fee - meal;
 
   // Hodiny sa vo výkaze uvádzajú na štvrťhodiny presne, tak ako doteraz.
   const hours = Math.round((remainder / minHourlyWage) * 100) / 100;

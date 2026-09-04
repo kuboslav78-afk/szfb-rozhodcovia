@@ -6,6 +6,7 @@ import { CATEGORIES, CATEGORY_LABELS, type Category } from "@/lib/categories";
 import { leaguesForCategory } from "@/lib/leagues";
 import {
   TIME_TYPE_LABELS,
+  resolveRate,
   volunteerBreakdown,
   type LeagueRate,
   type TimeType,
@@ -72,16 +73,22 @@ function RateRow({
     time_type: "hruby",
     fee: null,
     travel_supplement: null,
-    volunteer_fee: null,
-    volunteer_meal: null,
-    volunteer_max_per_day: null,
+    fee_hruby: null,
+    fee_cisty: null,
+    meal_hruby: null,
+    meal_cisty: null,
+    max_per_day_hruby: null,
+    max_per_day_cisty: null,
   };
 
   function patch(changes: Partial<LeagueRate>) {
     onSave(league, { ...current, ...changes });
   }
 
-  const breakdown = volunteerBreakdown(current, minHourlyWage);
+  const resolved = resolveRate(current);
+  const breakdown = volunteerBreakdown(resolved, minHourlyWage);
+  const hasVariants = current.fee_hruby != null || current.fee_cisty != null;
+  const activeCisty = current.time_type === "cisty";
 
   return (
     <tr className="border-t border-zinc-100 dark:border-zinc-900">
@@ -100,7 +107,11 @@ function RateRow({
         </select>
       </td>
       <td className="px-2 py-2 text-right">
-        <NumberInput value={current.fee} onCommit={(v) => patch({ fee: v })} suffix="€" />
+        {hasVariants ? (
+          <span className="text-[11px] text-zinc-400">podľa variantu</span>
+        ) : (
+          <NumberInput value={current.fee} onCommit={(v) => patch({ fee: v })} suffix="€" />
+        )}
       </td>
       <td className="px-2 py-2 text-right">
         <NumberInput
@@ -109,29 +120,36 @@ function RateRow({
           suffix="€"
         />
       </td>
-      <td className="px-2 py-2 text-right">
+      <td className={`px-2 py-2 text-right ${!activeCisty && hasVariants ? "bg-brand-indigo/5" : ""}`}>
+        <NumberInput value={current.fee_hruby} onCommit={(v) => patch({ fee_hruby: v })} suffix="€" />
+      </td>
+      <td className={`px-2 py-2 text-right ${!activeCisty && hasVariants ? "bg-brand-indigo/5" : ""}`}>
+        <NumberInput value={current.meal_hruby} onCommit={(v) => patch({ meal_hruby: v })} suffix="€" />
+      </td>
+      <td className={`px-2 py-2 text-right ${!activeCisty && hasVariants ? "bg-brand-indigo/5" : ""}`}>
         <NumberInput
-          value={current.volunteer_fee}
-          onCommit={(v) => patch({ volunteer_fee: v })}
-          suffix="€"
+          value={current.max_per_day_hruby}
+          onCommit={(v) => patch({ max_per_day_hruby: v })}
+          width="w-12"
         />
       </td>
-      <td className="px-2 py-2 text-right">
-        <NumberInput
-          value={current.volunteer_meal}
-          onCommit={(v) => patch({ volunteer_meal: v })}
-          suffix="€"
-        />
+      <td className={`px-2 py-2 text-right ${activeCisty && hasVariants ? "bg-brand-indigo/5" : ""}`}>
+        <NumberInput value={current.fee_cisty} onCommit={(v) => patch({ fee_cisty: v })} suffix="€" />
       </td>
-      <td className="px-2 py-2 text-right">
+      <td className={`px-2 py-2 text-right ${activeCisty && hasVariants ? "bg-brand-indigo/5" : ""}`}>
+        <NumberInput value={current.meal_cisty} onCommit={(v) => patch({ meal_cisty: v })} suffix="€" />
+      </td>
+      <td className={`px-2 py-2 text-right ${activeCisty && hasVariants ? "bg-brand-indigo/5" : ""}`}>
         <NumberInput
-          value={current.volunteer_max_per_day}
-          onCommit={(v) => patch({ volunteer_max_per_day: v })}
+          value={current.max_per_day_cisty}
+          onCommit={(v) => patch({ max_per_day_cisty: v })}
           width="w-12"
         />
       </td>
       <td className="px-2 py-2 text-right text-[11px] text-zinc-400">
-        {breakdown ? `${breakdown.hours} h × ${minHourlyWage} = ${breakdown.timeCompensation}` : "—"}
+        {breakdown
+          ? `${breakdown.hours} h × ${minHourlyWage} + ${breakdown.meal} = ${breakdown.total} €`
+          : "—"}
       </td>
     </tr>
   );
@@ -152,15 +170,18 @@ export function RatesManager({ rates, minHourlyWage }: Props) {
         time_type: next.time_type,
         fee: next.fee,
         travel_supplement: next.travel_supplement,
-        volunteer_fee: next.volunteer_fee,
-        volunteer_meal: next.volunteer_meal,
-        volunteer_max_per_day: next.volunteer_max_per_day,
+        fee_hruby: next.fee_hruby,
+        fee_cisty: next.fee_cisty,
+        meal_hruby: next.meal_hruby,
+        meal_cisty: next.meal_cisty,
+        max_per_day_hruby: next.max_per_day_hruby,
+        max_per_day_cisty: next.max_per_day_cisty,
       });
     });
   }
 
   if (collapsed) {
-    const filled = rates.filter((r) => r.fee != null || r.volunteer_fee != null).length;
+    const filled = rates.filter((r) => r.fee != null || r.fee_hruby != null).length;
     return (
       <div className="mb-10 flex items-center justify-between rounded-xl border border-zinc-200 px-5 py-4 dark:border-zinc-800">
         <div>
@@ -190,12 +211,15 @@ export function RatesManager({ rates, minHourlyWage }: Props) {
             Sadzobník odmien
           </h2>
           <p className="mt-1 max-w-3xl text-xs text-zinc-500">
-            <span className="font-semibold">Odmena</span> platí pre SZČO aj rámcovú
-            príkaznú zmluvu. <span className="font-semibold">Príplatok</span> dostane len
-            SZČO, a to za cestu mimo mesta sídla firmy.{" "}
-            <span className="font-semibold">Dobrovoľnícky výkaz</span> sa neplatí sumou
-            priamo — skladá sa zo stravného a náhrady straty času, ktorej hodiny sa
-            dopočítajú spätne (posledný stĺpec ukazuje, ako riadok výkazu vyjde).
+            Regionálne súťaže majú dve sadzby — <span className="font-semibold">hrubý</span>{" "}
+            a <span className="font-semibold">čistý čas</span> — a stĺpec Hrací čas vyberá,
+            ktorá práve platí (podfarbená). Dá sa prepnúť aj uprostred sezóny, sumy sa tým
+            neprepisujú. Rovnaká suma platí pre dobrovoľníka, SZČO aj rámcovú príkaznú;
+            celoštátne súťaže varianty nemajú, tie majú jedinú{" "}
+            <span className="font-semibold">Odmenu</span>.{" "}
+            <span className="font-semibold">Príplatok</span> dostane len SZČO za cestu mimo
+            mesta sídla firmy. Posledný stĺpec ukazuje, ako z toho vyjde riadok
+            dobrovoľníckeho výkazu.
           </p>
         </div>
         <button
@@ -253,17 +277,26 @@ export function RatesManager({ rates, minHourlyWage }: Props) {
                     <th className="px-2 py-2 text-right text-xs font-semibold text-zinc-500">
                       Príplatok SZČO
                     </th>
-                    <th className="px-2 py-2 text-right text-xs font-semibold text-zinc-500">
-                      Dobrovoľník
+                    <th className="border-l border-zinc-200 px-2 py-2 text-right text-xs font-semibold text-zinc-500 dark:border-zinc-800">
+                      Hrubý — suma
                     </th>
                     <th className="px-2 py-2 text-right text-xs font-semibold text-zinc-500">
-                      Stravné
+                      stravné
                     </th>
                     <th className="px-2 py-2 text-right text-xs font-semibold text-zinc-500">
-                      Max/deň
+                      max/deň
+                    </th>
+                    <th className="border-l border-zinc-200 px-2 py-2 text-right text-xs font-semibold text-zinc-500 dark:border-zinc-800">
+                      Čistý — suma
                     </th>
                     <th className="px-2 py-2 text-right text-xs font-semibold text-zinc-500">
-                      Náhrada straty času
+                      stravné
+                    </th>
+                    <th className="px-2 py-2 text-right text-xs font-semibold text-zinc-500">
+                      max/deň
+                    </th>
+                    <th className="px-2 py-2 text-right text-xs font-semibold text-zinc-500">
+                      Výkaz dobrovoľníka
                     </th>
                   </tr>
                 </thead>

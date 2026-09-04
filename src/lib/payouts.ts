@@ -2,6 +2,7 @@ import "server-only";
 import ExcelJS from "exceljs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/paginate";
+import { resolveRate, type LeagueRate } from "@/lib/rates";
 
 export type PayoutMatch = {
   league: string;
@@ -77,17 +78,17 @@ export async function collectPayouts(
         .order("id")
         .range(f, t),
     ),
-    fetchAllRows<{ league: string; fee: number | null; volunteer_fee: number | null }>((f, t) =>
-      supabase.from("league_rates").select("league, fee, volunteer_fee").order("league").range(f, t),
+    fetchAllRows<LeagueRate>((f, t) =>
+      supabase.from("league_rates").select("*").order("league").range(f, t),
     ),
     fetchAllRows<{ name: string; match_key: string; full_address: string | null }>((f, t) =>
       supabase.from("venues").select("name, match_key, full_address").order("name").range(f, t),
     ),
   ]);
 
-  const feeByLeague = new Map(
-    rates.map((r) => [r.league, contractType === "dobrovolnik" ? r.volunteer_fee : r.fee]),
-  );
+  // Odmena je pre všetky tri typy zmlúv rovnaká; pri regionálnych súťažiach ju
+  // vyberá nastavený hrací čas.
+  const feeByLeague = new Map(rates.map((r) => [r.league, resolveRate(r).fee]));
   const venueByKey = new Map(venues.map((v) => [v.match_key, v]));
   const byReferee = new Map<string, PayoutReferee>(
     referees.map((r) => [

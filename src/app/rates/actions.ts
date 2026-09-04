@@ -32,9 +32,12 @@ export type LeagueRateInput = {
   time_type: TimeType;
   fee: number | null;
   travel_supplement: number | null;
-  volunteer_fee: number | null;
-  volunteer_meal: number | null;
-  volunteer_max_per_day: number | null;
+  fee_hruby: number | null;
+  fee_cisty: number | null;
+  meal_hruby: number | null;
+  meal_cisty: number | null;
+  max_per_day_hruby: number | null;
+  max_per_day_cisty: number | null;
 };
 
 export async function updateLeagueRate(league: string, input: LeagueRateInput) {
