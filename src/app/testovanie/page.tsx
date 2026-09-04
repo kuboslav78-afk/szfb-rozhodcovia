@@ -1,9 +1,28 @@
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/Sidebar";
+import { PageTitle } from "@/components/PageTitle";
 import { ComingSoonSection } from "@/components/ComingSoonSection";
+import { QuestionBank, type BankQuestion } from "@/components/QuestionBank";
+import { WeeklyTest } from "@/components/WeeklyTest";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin } from "@/lib/view-mode";
+import { isTestingEnabled } from "@/lib/settings";
+import { fetchAllRows } from "@/lib/paginate";
+
+function weekMondayLabel() {
+  const now = new Date();
+  const sinceMonday = (now.getDay() + 6) % 7;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - sinceMonday);
+  return monday.toLocaleDateString("sk-SK", { day: "numeric", month: "long" });
+}
+
+function weekMondayIso() {
+  const now = new Date();
+  const sinceMonday = (now.getDay() + 6) % 7;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - sinceMonday);
+  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+}
 
 export default async function TestovaniePage() {
   const referee = await requireUser();
@@ -11,30 +30,115 @@ export default async function TestovaniePage() {
   const realIsAdmin = referee.role === "admin";
   const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
+  const enabled = await isTestingEnabled(supabase);
+
+  const sidebar = (
+    <Sidebar
+      current="testovanie"
+      refereeName={referee.full_name}
+      roleLabel={
+        realIsAdmin
+          ? isSuperAdmin
+            ? "Administrátor"
+            : "Administrátor · náhľad rozhodcu"
+          : referee.role === "viewer"
+            ? "Viewer"
+            : null
+      }
+      isAdmin={isSuperAdmin}
+      canSeeKro={isSuperAdmin || referee.role === "viewer"}
+      pendingNominations={pendingNominations}
+      canToggleView={realIsAdmin}
+      viewMode={isSuperAdmin ? "admin" : "referee"}
+      testingEnabled={enabled}
+    />
+  );
+
+  // Kým KRO banku otázok nepustí von, modul vidí len administrátor.
+  if (!enabled && !realIsAdmin) {
+    return (
+      <div className="lg:flex">
+        {sidebar}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">
+            <ComingSoonSection title="Testovanie" />
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  if (isSuperAdmin) {
+    const [questionRows, answerRows] = await Promise.all([
+      fetchAllRows<{
+        id: string;
+        question: string;
+        topic: string | null;
+        rule_reference: string | null;
+        video_url: string | null;
+        active: boolean;
+      }>((f, t) =>
+        supabase
+          .from("test_questions")
+          .select("id, question, topic, rule_reference, video_url, active")
+          .order("topic")
+          .order("created_at")
+          .range(f, t),
+      ),
+      fetchAllRows<{ question_id: string }>((f, t) =>
+        supabase.from("test_answers").select("question_id").order("question_id").range(f, t),
+      ),
+    ]);
+
+    const answerCounts = new Map<string, number>();
+    for (const a of answerRows) {
+      answerCounts.set(a.question_id, (answerCounts.get(a.question_id) ?? 0) + 1);
+    }
+
+    const questions: BankQuestion[] = questionRows.map((q) => ({
+      ...q,
+      answerCount: answerCounts.get(q.id) ?? 0,
+    }));
+
+    return (
+      <div className="lg:flex">
+        {sidebar}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+            <PageTitle className="mb-1">Testovanie</PageTitle>
+            <p className="mb-8 text-sm text-zinc-400">
+              Banka otázok, z ktorej každý rozhodca dostane na týždeň náhodných 10.
+              Prednosť majú otázky, ktoré ešte nedostal.
+            </p>
+            <QuestionBank questions={questions} enabled={enabled} />
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  const { data: assignment } = await supabase
+    .from("test_assignments")
+    .select("id, submitted_at, score")
+    .eq("referee_id", referee.id)
+    .eq("week_start", weekMondayIso())
+    .maybeSingle();
 
   return (
     <div className="lg:flex">
-      <Sidebar
-        current="testovanie"
-        refereeName={referee.full_name}
-        roleLabel={
-          realIsAdmin
-            ? isSuperAdmin
-              ? "Administrátor"
-              : "Administrátor · náhľad rozhodcu"
-            : referee.role === "viewer"
-              ? "Viewer"
-              : null
-        }
-        isAdmin={isSuperAdmin}
-        canSeeKro={isSuperAdmin || referee.role === "viewer"}
-        pendingNominations={pendingNominations}
-        canToggleView={realIsAdmin}
-        viewMode={isSuperAdmin ? "admin" : "referee"}
-      />
+      {sidebar}
       <div className="flex min-w-0 flex-1 flex-col">
-        <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">
-          <ComingSoonSection title="Testovanie" />
+        <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
+          <PageTitle className="mb-1">Testovanie</PageTitle>
+          <p className="mb-8 text-sm text-zinc-400">
+            Každý týždeň desať otázok z pravidiel florbalu.
+          </p>
+          <WeeklyTest
+            assignmentId={assignment?.id ?? null}
+            submitted={Boolean(assignment?.submitted_at)}
+            score={assignment?.score ?? null}
+            weekLabel={weekMondayLabel()}
+          />
         </main>
       </div>
     </div>

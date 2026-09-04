@@ -133,6 +133,8 @@ type Props = {
   viewMode?: "admin" | "referee";
   /** KRO sekcia (roster, e-mail) — viditeľná pre adminov aj pre viewer účty (napr. demo pre vedenie). */
   canSeeKro?: boolean;
+  /** Testovanie je pre rozhodcov skryté, kým KRO neprejde banku otázok. */
+  testingEnabled?: boolean;
 };
 
 function Brand() {
@@ -187,12 +189,14 @@ function Nav({
   isAdmin,
   canSeeKro,
   pendingNominations,
+  testingEnabled,
   onNavigate,
 }: {
   current: NavKey | null;
   isAdmin: boolean;
   canSeeKro: boolean;
   pendingNominations: number;
+  testingEnabled: boolean;
   onNavigate?: () => void;
 }) {
   const items: NavItem[] = [
@@ -201,7 +205,13 @@ function Nav({
     { key: "nominacie", href: "/nominations", label: "Nominácie", icon: ClipboardIcon, badge: pendingNominations },
     { key: "odmeny", href: "/odmeny", label: "Odmeny", icon: WalletIcon },
     { key: "vzdelavanie", href: "/vzdelavanie", label: "Vzdelávanie", icon: BookIcon, soon: true },
-    { key: "testovanie", href: "/testovanie", label: "Testovanie", icon: ChecklistIcon, soon: true },
+    {
+      key: "testovanie",
+      href: "/testovanie",
+      label: "Testovanie",
+      icon: ChecklistIcon,
+      soon: !testingEnabled && !isAdmin,
+    },
   ];
 
   return (
@@ -300,6 +310,7 @@ export function Sidebar({
   canToggleView,
   viewMode,
   canSeeKro,
+  testingEnabled = false,
 }: Props) {
   const showKro = canSeeKro ?? isAdmin;
   const [open, setOpen] = useState(false);
@@ -365,6 +376,7 @@ export function Sidebar({
               <Nav
                 current={current}
                 isAdmin={isAdmin}
+                testingEnabled={testingEnabled}
                 canSeeKro={showKro}
                 pendingNominations={pendingNominations}
                 onNavigate={() => setOpen(false)}
@@ -384,7 +396,13 @@ export function Sidebar({
           </div>
         )}
         <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
-          <Nav current={current} isAdmin={isAdmin} canSeeKro={showKro} pendingNominations={pendingNominations} />
+          <Nav
+            current={current}
+            isAdmin={isAdmin}
+            canSeeKro={showKro}
+            pendingNominations={pendingNominations}
+            testingEnabled={testingEnabled}
+          />
         </div>
         <UserFooter refereeName={refereeName} roleLabel={roleLabel} />
       </aside>

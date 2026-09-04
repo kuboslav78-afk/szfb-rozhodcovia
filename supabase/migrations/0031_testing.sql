@@ -12,8 +12,10 @@ create table if not exists test_questions (
   video_url text,
   -- Vysvetlenie správnej odpovede — rozhodca ho uvidí až po odoslaní testu.
   explanation text,
-  -- Voľné zaradenie (pravidlá, herné situácie, disciplinárka…).
+  -- Voľné zaradenie (hracia plocha, herné situácie, disciplinárka…).
   topic text,
+  -- Číslo pravidla, z ktorého otázka vychádza (napr. "101").
+  rule_reference text,
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -179,6 +181,7 @@ begin
         'question', q.question,
         'videoUrl', q.video_url,
         'topic', q.topic,
+        'ruleReference', q.rule_reference,
         -- Vysvetlenie a správnosť až po odoslaní.
         'explanation', case when v_submitted then q.explanation end,
         'chosenAnswerId', r.answer_id,
@@ -259,3 +262,21 @@ end;
 $$;
 
 grant execute on function submit_test(uuid, jsonb) to authenticated;
+
+-- Modul sa rozhodcom sprístupní až vtedy, keď KRO prejde banku otázok. Dovtedy
+-- ho vidí len administrátor a rozhodcovia majú v menu naďalej "Čoskoro".
+create table if not exists app_settings (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table app_settings enable row level security;
+
+create policy "app_settings_select_authenticated" on app_settings
+  for select using (auth.uid() is not null);
+create policy "app_settings_write_admin" on app_settings
+  for all using (is_admin()) with check (is_admin());
+
+insert into app_settings (key, value) values ('testing_enabled', 'false')
+on conflict (key) do nothing;
