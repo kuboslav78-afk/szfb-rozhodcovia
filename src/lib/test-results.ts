@@ -30,7 +30,7 @@ export type TestResults = {
 };
 
 export async function getTestResults(supabase: SupabaseClient): Promise<TestResults> {
-  const [referees, assignments, responses, questions] = await Promise.all([
+  const [allReferees, kroRows, assignments, responses, questions] = await Promise.all([
     fetchAllRows<{ id: string; full_name: string }>((f, t) =>
       supabase
         .from("referees")
@@ -38,6 +38,14 @@ export async function getTestResults(supabase: SupabaseClient): Promise<TestResu
         .eq("active", true)
         .eq("role", "referee")
         .order("full_name")
+        .range(f, t),
+    ),
+    // Členovia komisie testy nevypĺňajú, takže do štatistík nepatria.
+    fetchAllRows<{ referee_id: string }>((f, t) =>
+      supabase
+        .from("category_admins")
+        .select("referee_id")
+        .order("referee_id")
         .range(f, t),
     ),
     fetchAllRows<{
@@ -66,6 +74,9 @@ export async function getTestResults(supabase: SupabaseClient): Promise<TestResu
       supabase.from("test_questions").select("id, question, topic").order("id").range(f, t),
     ),
   ]);
+
+  const kro = new Set(kroRows.map((r) => r.referee_id));
+  const referees = allReferees.filter((r) => !kro.has(r.id));
 
   const thisWeek = weekMondayIso();
   const submitted = assignments.filter((a) => a.submitted_at);

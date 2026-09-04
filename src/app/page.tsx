@@ -313,7 +313,8 @@ export default async function HomePage(props: PageProps<"/">) {
   // pri prvom otvorení testu, takže jeho absencia znamená, že ešte nezačal.
   let weeklyTest = { pending: false, started: false };
 
-  if (testingEnabled && !isViewer) {
+  // Členovia KRO testy nevypĺňajú, tak ich pripomienkou neotravujeme.
+  if (testingEnabled && !isViewer && !hasAdminAccess) {
     const { data: assignment } = await supabase
       .from("test_assignments")
       .select("submitted_at")

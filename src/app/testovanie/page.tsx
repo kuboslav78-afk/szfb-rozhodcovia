@@ -8,7 +8,7 @@ import { TestResultsPanel } from "@/components/TestResultsPanel";
 import { getTestResults } from "@/lib/test-results";
 import { WeeklyTest } from "@/components/WeeklyTest";
 import { getPendingNominationCount } from "@/lib/nominations";
-import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
+import { getEffectiveIsAdmin } from "@/lib/view-mode";
 import { isTestingEnabled } from "@/lib/settings";
 import { fetchAllRows } from "@/lib/paginate";
 import { getCategoryAccess } from "@/lib/category-access";
@@ -34,7 +34,6 @@ export default async function TestovaniePage() {
   const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
   const enabled = await isTestingEnabled(supabase);
-  const refereeView = await isRefereeViewActive();
 
   // Banku a výsledky vidí celá KRO — super admin, viewer aj členovia komisie
   // s kategóriovým prístupom. Upravovať ich smie len super admin.
@@ -78,7 +77,7 @@ export default async function TestovaniePage() {
     );
   }
 
-  if (isKro && !refereeView) {
+  if (isKro) {
     const [questionRows, answerRows] = await Promise.all([
       fetchAllRows<{
         id: string;
