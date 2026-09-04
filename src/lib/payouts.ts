@@ -2,7 +2,7 @@ import "server-only";
 import ExcelJS from "exceljs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/paginate";
-import { resolveRate, type LeagueRate } from "@/lib/rates";
+import { getEarningEntries } from "@/lib/earnings";
 
 export type PayoutMatch = {
   league: string;
@@ -36,11 +36,8 @@ export async function collectPayouts(
   month: string,
   contractType: "ramcova" | "szco" | "dobrovolnik",
 ): Promise<PayoutReferee[]> {
-  const from = `${month}-01`;
-  const [year, mon] = month.split("-").map(Number);
-  const to = `${year}-${String(mon).padStart(2, "0")}-${new Date(year, mon, 0).getDate()}`;
-
-  const [referees, matches, rates, venues] = await Promise.all([
+  const [entries, referees] = await Promise.all([
+    getEarningEntries(supabase),
     fetchAllRows<{
       id: string;
       full_name: string;
@@ -56,40 +53,8 @@ export async function collectPayouts(
         .order("full_name")
         .range(f, t),
     ),
-    fetchAllRows<{
-      league: string;
-      match_number: number | null;
-      round: string | null;
-      venue: string | null;
-      match_date: string;
-      referee1_id: string | null;
-      referee1_status: string;
-      referee2_id: string | null;
-      referee2_status: string;
-    }>((f, t) =>
-      supabase
-        .from("matches")
-        .select(
-          "league, match_number, round, venue, match_date, referee1_id, referee1_status, referee2_id, referee2_status",
-        )
-        .gte("match_date", from)
-        .lte("match_date", to)
-        .order("match_date")
-        .order("id")
-        .range(f, t),
-    ),
-    fetchAllRows<LeagueRate>((f, t) =>
-      supabase.from("league_rates").select("*").order("league").range(f, t),
-    ),
-    fetchAllRows<{ name: string; match_key: string; full_address: string | null }>((f, t) =>
-      supabase.from("venues").select("name, match_key, full_address").order("name").range(f, t),
-    ),
   ]);
 
-  // Odmena je pre všetky tri typy zmlúv rovnaká; pri regionálnych súťažiach ju
-  // vyberá nastavený hrací čas.
-  const feeByLeague = new Map(rates.map((r) => [r.league, resolveRate(r).fee]));
-  const venueByKey = new Map(venues.map((v) => [v.match_key, v]));
   const byReferee = new Map<string, PayoutReferee>(
     referees.map((r) => [
       r.id,
@@ -105,30 +70,22 @@ export async function collectPayouts(
     ]),
   );
 
-  for (const match of matches) {
-    for (const slot of [1, 2] as const) {
-      const refereeId = slot === 1 ? match.referee1_id : match.referee2_id;
-      const status = slot === 1 ? match.referee1_status : match.referee2_status;
-      if (!refereeId || status !== "confirmed") continue;
+  for (const entry of entries) {
+    if (entry.matchDate.slice(0, 7) !== month) continue;
 
-      const referee = byReferee.get(refereeId);
-      if (!referee) continue;
+    const referee = byReferee.get(entry.refereeId);
+    if (!referee) continue;
 
-      const fee = feeByLeague.get(match.league) ?? 0;
-      const directory = match.venue ? venueByKey.get(venueMatchKeyLocal(match.venue)) : undefined;
-
-      referee.matches.push({
-        league: match.league,
-        matchLabel: match.match_number != null ? String(match.match_number) : (match.round ?? ""),
-        // Vo výkaze je hala aj s adresou; keď ju v adresári nemáme, aspoň názov.
-        venue: directory?.full_address
-          ? `${directory.name.replace(/\s*"kateg[oó]ria[^"]*"\s*$/i, "").trim()}, ${directory.full_address}`
-          : (match.venue ?? ""),
-        matchDate: match.match_date,
-        fee: Number(fee),
-      });
-      referee.total += Number(fee);
-    }
+    referee.matches.push({
+      league: entry.league,
+      matchLabel: entry.matchLabel,
+      venue: entry.venueLabel,
+      matchDate: entry.matchDate,
+      // Príplatok je súčasťou toho, čo sa rozhodcovi vypláca; pri rámcovej
+      // príkaznej a dobrovoľníckej je vždy nulový.
+      fee: entry.total,
+    });
+    referee.total += entry.total;
   }
 
   return Array.from(byReferee.values())
@@ -162,19 +119,6 @@ function compareBySurname(a: string, b: string): number {
     left.surname.localeCompare(right.surname, "sk") ||
     left.rest.localeCompare(right.rest, "sk")
   );
-}
-
-/** Rovnaká normalizácia ako v szfb-venues, len bez importu server-only modulu. */
-function venueMatchKeyLocal(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/["'„“”]/g, "")
-    .replace(/kateg[oó]ria\s*\S+/i, "")
-    .replace(/[.,]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
 }
 
 const MONTH_NAMES = [

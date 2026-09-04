@@ -11,6 +11,7 @@ export type NavKey =
   | "prehlad"
   | "dostupnost"
   | "nominacie"
+  | "odmeny"
   | "vzdelavanie"
   | "testovanie"
   | "administracia"
@@ -43,6 +44,16 @@ function ClipboardIcon(props: IconProps) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M9 11l3 3L22 4" />
       <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  );
+}
+
+function WalletIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 16.5Z" />
+      <path d="M3 7.5A2.5 2.5 0 0 0 5.5 10H21" />
+      <circle cx="17" cy="14.5" r="1.2" />
     </svg>
   );
 }
@@ -188,6 +199,7 @@ function Nav({
     { key: "prehlad", href: "/", label: "Prehľad", icon: GridIcon },
     { key: "dostupnost", href: "/dostupnost", label: "Dostupnosť", icon: CalendarIcon },
     { key: "nominacie", href: "/nominations", label: "Nominácie", icon: ClipboardIcon, badge: pendingNominations },
+    { key: "odmeny", href: "/odmeny", label: "Odmeny", icon: WalletIcon },
     { key: "vzdelavanie", href: "/vzdelavanie", label: "Vzdelávanie", icon: BookIcon, soon: true },
     { key: "testovanie", href: "/testovanie", label: "Testovanie", icon: ChecklistIcon, soon: true },
   ];
