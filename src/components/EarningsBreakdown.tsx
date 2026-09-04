@@ -73,11 +73,13 @@ function serverTravel(): TravelMap {
 
 type Props = {
   entries: EarningEntry[];
-  /** KRO vidí mená; rozhodca má na stránke len svoje zápasy a môže si dopísať cestovné. */
+  /** KRO vidí mená; rozhodca má na stránke len svoje zápasy. */
   showReferee: boolean;
+  /** Typ zmluvy prihláseného rozhodcu — rozhoduje, čo mu vôbec patrí. */
+  contractType: string | null;
 };
 
-export function EarningsBreakdown({ entries, showReferee }: Props) {
+export function EarningsBreakdown({ entries, showReferee, contractType }: Props) {
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
   const travel = useSyncExternalStore(subscribeTravel, readTravel, serverTravel);
 
@@ -143,7 +145,13 @@ export function EarningsBreakdown({ entries, showReferee }: Props) {
     );
   }
 
-  const colSpan = showReferee ? 5 : 4;
+  // SZČO má nárok na príplatok, ale nie na cestovné; rámcová príkazná a
+  // dobrovoľnícka naopak. Nech nikto nevidí kolónku, ktorá mu nepatrí.
+  const showSupplement = showReferee || contractType === "szco";
+  const showTravel = !showReferee && contractType !== "szco";
+
+  // Dátum + (Rozhodca) + Liga + Zápas — pred prvým číselným stĺpcom.
+  const labelColumns = showReferee ? 4 : 3;
 
   return (
     <div>
@@ -192,8 +200,8 @@ export function EarningsBreakdown({ entries, showReferee }: Props) {
                   <div className="mt-0.5 text-xs text-zinc-400">
                     {m.playedCount} odpískaných
                     {m.upcomingCount > 0 && ` · ${m.upcomingCount} čaká`}
-                    {m.supplements > 0 && ` · príplatky ${eur(m.supplements)}`}
-                    {m.travel > 0 && ` · cestovné ${eur(m.travel)}`}
+                    {showSupplement && m.supplements > 0 && ` · príplatky ${eur(m.supplements)}`}
+                    {showTravel && m.travel > 0 && ` · cestovné ${eur(m.travel)}`}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
@@ -226,12 +234,16 @@ export function EarningsBreakdown({ entries, showReferee }: Props) {
                         <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-500">
                           Odmena
                         </th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-500">
-                          Príplatok
-                        </th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-500">
-                          Cestovné
-                        </th>
+                        {showSupplement && (
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-500">
+                            Príplatok
+                          </th>
+                        )}
+                        {showTravel && (
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-500">
+                            Cestovné
+                          </th>
+                        )}
                         <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-500">
                           Spolu
                         </th>
@@ -277,17 +289,17 @@ export function EarningsBreakdown({ entries, showReferee }: Props) {
                             <td className="px-3 py-2 text-right text-zinc-700 dark:text-zinc-300">
                               {eur(row.fee)}
                             </td>
-                            <td className="px-3 py-2 text-right text-zinc-700 dark:text-zinc-300">
-                              {row.supplement > 0 ? (
-                                eur(row.supplement)
-                              ) : (
-                                <span className="text-zinc-300 dark:text-zinc-700">—</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-right">
-                              {showReferee ? (
-                                <span className="text-zinc-300 dark:text-zinc-700">—</span>
-                              ) : (
+                            {showSupplement && (
+                              <td className="px-3 py-2 text-right text-zinc-700 dark:text-zinc-300">
+                                {row.supplement > 0 ? (
+                                  eur(row.supplement)
+                                ) : (
+                                  <span className="text-zinc-300 dark:text-zinc-700">—</span>
+                                )}
+                              </td>
+                            )}
+                            {showTravel && (
+                              <td className="px-3 py-2 text-right">
                                 <input
                                   type="text"
                                   inputMode="decimal"
@@ -304,8 +316,8 @@ export function EarningsBreakdown({ entries, showReferee }: Props) {
                                   }}
                                   className="w-20 rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-right text-xs outline-none focus:border-brand-indigo dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
                                 />
-                              )}
-                            </td>
+                              </td>
+                            )}
                             <td className="px-3 py-2 text-right font-semibold text-zinc-800 dark:text-zinc-200">
                               {eur(row.total + cp)}
                             </td>
@@ -315,19 +327,23 @@ export function EarningsBreakdown({ entries, showReferee }: Props) {
                       <tr className="border-t-2 border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
                         <td
                           className="px-3 py-2 text-xs font-semibold text-zinc-500"
-                          colSpan={colSpan - 1}
+                          colSpan={labelColumns}
                         >
                           Spolu za {monthLabel(m.month)}
                         </td>
                         <td className="px-3 py-2 text-right text-xs font-semibold text-zinc-600 dark:text-zinc-300">
                           {eur(m.fees)}
                         </td>
-                        <td className="px-3 py-2 text-right text-xs font-semibold text-zinc-600 dark:text-zinc-300">
-                          {m.supplements > 0 ? eur(m.supplements) : "—"}
-                        </td>
-                        <td className="px-3 py-2 text-right text-xs font-semibold text-zinc-600 dark:text-zinc-300">
-                          {m.travel > 0 ? eur(m.travel) : "—"}
-                        </td>
+                        {showSupplement && (
+                          <td className="px-3 py-2 text-right text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                            {m.supplements > 0 ? eur(m.supplements) : "—"}
+                          </td>
+                        )}
+                        {showTravel && (
+                          <td className="px-3 py-2 text-right text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                            {m.travel > 0 ? eur(m.travel) : "—"}
+                          </td>
+                        )}
                         <td className="px-3 py-2 text-right font-bold text-zinc-900 dark:text-zinc-100">
                           {eur(m.total)}
                         </td>
@@ -344,8 +360,11 @@ export function EarningsBreakdown({ entries, showReferee }: Props) {
       <p className="mt-6 text-xs leading-relaxed text-zinc-400">
         Odmeny a príplatky sú prepočítané podľa sadzobníka z potvrdených nominácií;
         rozhodujúce je vyúčtovanie, ktoré pripravuje KRO.
-        {!showReferee &&
+        {showTravel &&
           " Cestovné si dopisuješ sám — portál cestovné príkazy nerieši, hodnota ostáva len v tomto prehliadači a slúži ti na kontrolu, koľko ti má prísť na účet."}
+        {!showReferee &&
+          contractType === "szco" &&
+          " Ako SZČO máš nárok na príplatok (najviac jeden na hrací deň, ten najvyšší), cestovný príkaz sa ti nepreplatí."}
       </p>
     </div>
   );

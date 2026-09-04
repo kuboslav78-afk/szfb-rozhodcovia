@@ -30,6 +30,12 @@ export default async function OdmenyPage() {
     showEveryone ? undefined : referee.id,
   );
 
+  const { data: myProfile } = await supabase
+    .from("referees")
+    .select("contract_type")
+    .eq("id", referee.id)
+    .maybeSingle();
+
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
 
   const { count: myCategoryCount } = await supabase
@@ -68,7 +74,11 @@ export default async function OdmenyPage() {
               : "Tvoje odmeny po mesiacoch. Rozklikni mesiac a uvidíš jednotlivé zápasy."}
           </p>
 
-          <EarningsBreakdown entries={entries} showReferee={showEveryone} />
+          <EarningsBreakdown
+            entries={entries}
+            showReferee={showEveryone}
+            contractType={myProfile?.contract_type ?? null}
+          />
         </main>
       </div>
     </div>
