@@ -136,9 +136,31 @@ export async function collectPayouts(
       ...r,
       matches: r.matches.sort((a, b) => a.matchDate.localeCompare(b.matchDate)),
     }))
-    // Zoradenie robíme tu, nie v databáze — porovnanie podľa slovenskej abecedy
-    // dá pri diakritike iné poradie než predvolené triedenie Postgresu.
-    .sort((a, b) => a.fullName.localeCompare(b.fullName, "sk"));
+    // Zoradenie robíme tu, nie v databáze — treba radiť podľa priezviska, a navyše
+    // porovnanie podľa slovenskej abecedy dá pri diakritike iné poradie než
+    // predvolené triedenie Postgresu.
+    .sort((a, b) => compareBySurname(a.fullName, b.fullName));
+}
+
+/**
+ * Zoradenie podľa priezviska, tak ako sa vedú úradné zoznamy. Mená sú uložené
+ * ako "Meno Priezvisko", priezvisko je teda posledné slovo — pri dvoch krstných
+ * menách ("Jozef Miroslav Riečický") to vyjde správne. Pri zhode priezviska
+ * rozhoduje zvyšok mena.
+ */
+function compareBySurname(a: string, b: string): number {
+  const split = (name: string) => {
+    const parts = name.trim().split(/\s+/);
+    return { surname: parts.at(-1) ?? name, rest: parts.slice(0, -1).join(" ") };
+  };
+
+  const left = split(a);
+  const right = split(b);
+
+  return (
+    left.surname.localeCompare(right.surname, "sk") ||
+    left.rest.localeCompare(right.rest, "sk")
+  );
 }
 
 /** Rovnaká normalizácia ako v szfb-venues, len bez importu server-only modulu. */
