@@ -30,6 +30,7 @@ import { CategoryAdminsManager } from "@/components/CategoryAdminsManager";
 import { RefereeDataTable, type RefereeDataRow } from "@/components/RefereeDataTable";
 import { RatesManager } from "@/components/RatesManager";
 import { VenuesPanel } from "@/components/VenuesPanel";
+import { PayoutGenerator } from "@/components/PayoutGenerator";
 import { venueMatchKey } from "@/lib/szfb-venues";
 import { getLeagueRates, getMinHourlyWage, DEFAULT_MIN_HOURLY_WAGE, type LeagueRate } from "@/lib/rates";
 import { AddRefereeForm } from "@/components/AddRefereeForm";
@@ -546,6 +547,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
               unmatched={unmatchedVenues}
             />
             <RatesManager rates={leagueRates} minHourlyWage={minHourlyWage} />
+            <PayoutGenerator />
             <CategoryAdminsManager
               referees={allReferees}
               initialAccess={allCategoryAccess}
