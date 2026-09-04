@@ -8,9 +8,10 @@ import { TestResultsPanel } from "@/components/TestResultsPanel";
 import { getTestResults } from "@/lib/test-results";
 import { WeeklyTest } from "@/components/WeeklyTest";
 import { getPendingNominationCount } from "@/lib/nominations";
-import { getEffectiveIsAdmin } from "@/lib/view-mode";
+import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
 import { isTestingEnabled } from "@/lib/settings";
 import { fetchAllRows } from "@/lib/paginate";
+import { getCategoryAccess } from "@/lib/category-access";
 
 function weekMondayLabel() {
   const now = new Date();
@@ -33,6 +34,13 @@ export default async function TestovaniePage() {
   const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
   const enabled = await isTestingEnabled(supabase);
+  const refereeView = await isRefereeViewActive();
+
+  // Banku a výsledky vidí celá KRO — super admin, viewer aj členovia komisie
+  // s kategóriovým prístupom. Upravovať ich smie len super admin.
+  const categoryAccess = await getCategoryAccess(supabase, referee.id, realIsAdmin);
+  const isKro =
+    realIsAdmin || referee.role === "viewer" || categoryAccess.visible.length > 0;
 
   const sidebar = (
     <Sidebar
@@ -56,8 +64,8 @@ export default async function TestovaniePage() {
     />
   );
 
-  // Kým KRO banku otázok nepustí von, modul vidí len administrátor.
-  if (!enabled && !realIsAdmin) {
+  // Kým KRO banku otázok nepustí von, modul vidí len komisia.
+  if (!enabled && !isKro) {
     return (
       <div className="lg:flex">
         {sidebar}
@@ -70,7 +78,7 @@ export default async function TestovaniePage() {
     );
   }
 
-  if (isSuperAdmin) {
+  if (isKro && !refereeView) {
     const [questionRows, answerRows] = await Promise.all([
       fetchAllRows<{
         id: string;
@@ -124,9 +132,14 @@ export default async function TestovaniePage() {
             <p className="mb-8 text-sm text-zinc-400">
               Banka otázok, z ktorej každý rozhodca dostane na týždeň náhodných 10.
               Prednosť majú otázky, ktoré ešte nedostal.
+              {!isSuperAdmin && " Banku upravuje predseda komisie."}
             </p>
             <TestResultsPanel results={results} />
-            <QuestionBank questions={questions} enabled={enabled} />
+            <QuestionBank
+              questions={questions}
+              enabled={enabled}
+              readOnly={!isSuperAdmin}
+            />
           </main>
         </div>
       </div>

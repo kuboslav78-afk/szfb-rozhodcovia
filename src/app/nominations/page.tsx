@@ -12,6 +12,7 @@ import { fetchAllRows } from "@/lib/paginate";
 import { MyNominations, type MyNomination } from "@/components/MyNominations";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
+import { isTestingEnabled } from "@/lib/settings";
 import { getCategoryAccess } from "@/lib/category-access";
 import type { AvailabilityStatus } from "@/app/availability/actions";
 import { CATEGORIES, CATEGORY_LABELS, parseCategoryParam, type Category } from "@/lib/categories";
@@ -26,6 +27,7 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
 
   const referee = await requireUser();
   const supabase = await createClient();
+  const testingEnabled = await isTestingEnabled(supabase);
   const realIsAdmin = referee.role === "admin";
   const isEffectiveAdmin = await getEffectiveIsAdmin(referee.role);
   const isViewerRole = referee.role === "viewer";
@@ -120,6 +122,7 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
           pendingNominations={pendingNominations}
           canToggleView={canToggleView}
           viewMode="referee"
+        testingEnabled={testingEnabled}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-10">
@@ -199,6 +202,7 @@ export default async function NominationsPage(props: PageProps<"/nominations">) 
         pendingNominations={pendingNominations}
         canToggleView={canToggleView}
         viewMode="admin"
+        testingEnabled={testingEnabled}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-10">

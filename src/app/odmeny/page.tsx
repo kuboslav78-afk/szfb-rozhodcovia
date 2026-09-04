@@ -6,11 +6,13 @@ import { EarningsBreakdown } from "@/components/EarningsBreakdown";
 import { getEarningEntries } from "@/lib/earnings";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
+import { isTestingEnabled } from "@/lib/settings";
 import { getCategoryAccess } from "@/lib/category-access";
 
 export default async function OdmenyPage() {
   const referee = await requireUser();
   const supabase = await createClient();
+  const testingEnabled = await isTestingEnabled(supabase);
 
   const realIsAdmin = referee.role === "admin";
   const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
@@ -64,6 +66,7 @@ export default async function OdmenyPage() {
         pendingNominations={pendingNominations}
         canToggleView={realIsAdmin || (hasAdminAccess && isActiveReferee)}
         viewMode={refereeView || !hasAdminAccess ? "referee" : "admin"}
+        testingEnabled={testingEnabled}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">

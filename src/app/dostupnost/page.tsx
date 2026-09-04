@@ -41,6 +41,7 @@ import {
 } from "@/components/CancellationRequests";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
+import { isTestingEnabled } from "@/lib/settings";
 import { getCategoryAccess } from "@/lib/category-access";
 import { fetchAllRows } from "@/lib/paginate";
 import type { ContractType } from "@/lib/contracts";
@@ -67,6 +68,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
 
   const referee = await requireUser();
   const supabase = await createClient();
+  const testingEnabled = await isTestingEnabled(supabase);
 
   const realIsAdmin = referee.role === "admin";
   const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
@@ -460,6 +462,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
         pendingNominations={pendingNominations}
         canToggleView={canToggleView}
         viewMode={refereeView ? "referee" : hasAdminAccess ? "admin" : "referee"}
+        testingEnabled={testingEnabled}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         {needsHomeRegionPrompt && <HomeRegionPrompt />}

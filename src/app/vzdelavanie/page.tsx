@@ -4,10 +4,12 @@ import { Sidebar } from "@/components/Sidebar";
 import { ComingSoonSection } from "@/components/ComingSoonSection";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin } from "@/lib/view-mode";
+import { isTestingEnabled } from "@/lib/settings";
 
 export default async function VzdelavaniePage() {
   const referee = await requireUser();
   const supabase = await createClient();
+  const testingEnabled = await isTestingEnabled(supabase);
   const realIsAdmin = referee.role === "admin";
   const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
@@ -31,6 +33,7 @@ export default async function VzdelavaniePage() {
         pendingNominations={pendingNominations}
         canToggleView={realIsAdmin}
         viewMode={isSuperAdmin ? "admin" : "referee"}
+        testingEnabled={testingEnabled}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-10">

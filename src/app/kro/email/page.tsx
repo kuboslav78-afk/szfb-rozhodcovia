@@ -8,6 +8,7 @@ import { EmailComposer } from "@/components/EmailComposer";
 import { listAllReferees } from "@/app/kro/actions";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin } from "@/lib/view-mode";
+import { isTestingEnabled } from "@/lib/settings";
 
 export default async function KroEmailPage() {
   const referee = await requireUser();
@@ -16,6 +17,8 @@ export default async function KroEmailPage() {
   }
 
   const supabase = await createClient();
+
+  const testingEnabled = await isTestingEnabled(supabase);
   const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
   const referees = await listAllReferees();
@@ -30,6 +33,7 @@ export default async function KroEmailPage() {
         pendingNominations={pendingNominations}
         canToggleView={true}
         viewMode={isSuperAdmin ? "admin" : "referee"}
+        testingEnabled={testingEnabled}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">

@@ -24,6 +24,8 @@ export type BankQuestion = {
 type Props = {
   questions: BankQuestion[];
   enabled: boolean;
+  /** Členovia KRO bez admin práv banku vidia, ale nemenia. */
+  readOnly?: boolean;
 };
 
 const EMPTY_DRAFT = {
@@ -179,7 +181,7 @@ function normalize(text: string) {
     .toLowerCase();
 }
 
-export function QuestionBank({ questions, enabled }: Props) {
+export function QuestionBank({ questions, enabled, readOnly = false }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [json, setJson] = useState("");
@@ -263,6 +265,7 @@ export function QuestionBank({ questions, enabled }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
+      {!readOnly && (
       <div
         className={`rounded-xl border p-5 ${
           live
@@ -302,7 +305,9 @@ export function QuestionBank({ questions, enabled }: Props) {
           </p>
         )}
       </div>
+      )}
 
+      {!readOnly && (
       <div className="rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
           Import otázok
@@ -338,6 +343,7 @@ export function QuestionBank({ questions, enabled }: Props) {
           {busy ? "Importujem…" : "Importovať"}
         </button>
       </div>
+      )}
 
       {message && (
         <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
@@ -356,6 +362,7 @@ export function QuestionBank({ questions, enabled }: Props) {
             Banka otázok
           </h2>
           <div className="flex items-center gap-3">
+            {!readOnly && (
             <button
               type="button"
               onClick={() => {
@@ -366,6 +373,7 @@ export function QuestionBank({ questions, enabled }: Props) {
             >
               + Pridať otázku
             </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -471,6 +479,8 @@ export function QuestionBank({ questions, enabled }: Props) {
                   </div>
                 )}
               </button>
+              {!readOnly && (
+              <>
               <button
                 type="button"
                 disabled={busy}
@@ -507,6 +517,8 @@ export function QuestionBank({ questions, enabled }: Props) {
               >
                 ×
               </button>
+              </>
+              )}
             </div>
             ),
           )}

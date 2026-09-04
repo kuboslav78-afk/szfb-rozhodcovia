@@ -6,6 +6,7 @@ import { PageTitle } from "@/components/PageTitle";
 import { LicenseBadge } from "@/components/LicenseBadge";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin } from "@/lib/view-mode";
+import { isTestingEnabled } from "@/lib/settings";
 import type { LicenseLevel } from "@/lib/licenses";
 
 const PREDSEDA = "Jakub Kučera";
@@ -27,6 +28,8 @@ export default async function KroPage() {
   }
 
   const supabase = await createClient();
+
+  const testingEnabled = await isTestingEnabled(supabase);
   const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
 
@@ -58,6 +61,7 @@ export default async function KroPage() {
         pendingNominations={pendingNominations}
         canToggleView={referee.role === "admin"}
         viewMode={isSuperAdmin ? "admin" : "referee"}
+        testingEnabled={testingEnabled}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-10">

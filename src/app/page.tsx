@@ -37,6 +37,7 @@ export default async function HomePage(props: PageProps<"/">) {
   const searchParams = await props.searchParams;
   const referee = await requireUser();
   const supabase = await createClient();
+  const testingEnabled = await isTestingEnabled(supabase);
   const realIsAdmin = referee.role === "admin";
   const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
   const isViewer = referee.role === "viewer";
@@ -125,6 +126,7 @@ export default async function HomePage(props: PageProps<"/">) {
           pendingNominations={pendingNominations}
           canToggleView={canToggleView}
           viewMode="admin"
+        testingEnabled={testingEnabled}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
@@ -309,7 +311,6 @@ export default async function HomePage(props: PageProps<"/">) {
 
   // Pripomienka týždenného testu — kým ho rozhodca neodošle. Zadanie vzniká až
   // pri prvom otvorení testu, takže jeho absencia znamená, že ešte nezačal.
-  const testingEnabled = await isTestingEnabled(supabase);
   let weeklyTest = { pending: false, started: false };
 
   if (testingEnabled && !isViewer) {
@@ -346,6 +347,7 @@ export default async function HomePage(props: PageProps<"/">) {
         pendingNominations={pendingNominations}
         canToggleView={canToggleView}
         viewMode="referee"
+        testingEnabled={testingEnabled}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">

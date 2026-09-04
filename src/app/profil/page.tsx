@@ -9,6 +9,7 @@ import { PhotoUpload } from "@/components/PhotoUpload";
 import { CriminalRecordUpload } from "@/components/CriminalRecordUpload";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin } from "@/lib/view-mode";
+import { isTestingEnabled } from "@/lib/settings";
 import { LICENSE_LABELS, isLicenseLevel } from "@/lib/licenses";
 import { CATEGORY_LABELS, isCategory } from "@/lib/categories";
 import { CONTRACT_LABELS, isContractType } from "@/lib/contracts";
@@ -16,6 +17,7 @@ import { CONTRACT_LABELS, isContractType } from "@/lib/contracts";
 export default async function ProfilPage() {
   const referee = await requireUser();
   const supabase = await createClient();
+  const testingEnabled = await isTestingEnabled(supabase);
   const realIsAdmin = referee.role === "admin";
   const isSuperAdmin = await getEffectiveIsAdmin(referee.role);
   const pendingNominations = await getPendingNominationCount(supabase, referee.id);
@@ -64,6 +66,7 @@ export default async function ProfilPage() {
         pendingNominations={pendingNominations}
         canToggleView={realIsAdmin}
         viewMode={isSuperAdmin ? "admin" : "referee"}
+        testingEnabled={testingEnabled}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-10">
