@@ -4,6 +4,8 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageTitle } from "@/components/PageTitle";
 import { ComingSoonSection } from "@/components/ComingSoonSection";
 import { QuestionBank, type BankQuestion } from "@/components/QuestionBank";
+import { TestResultsPanel } from "@/components/TestResultsPanel";
+import { getTestResults } from "@/lib/test-results";
 import { WeeklyTest } from "@/components/WeeklyTest";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin } from "@/lib/view-mode";
@@ -111,6 +113,8 @@ export default async function TestovaniePage() {
       answers: answersByQuestion.get(q.id) ?? [],
     }));
 
+    const results = await getTestResults(supabase);
+
     return (
       <div className="lg:flex">
         {sidebar}
@@ -121,6 +125,7 @@ export default async function TestovaniePage() {
               Banka otázok, z ktorej každý rozhodca dostane na týždeň náhodných 10.
               Prednosť majú otázky, ktoré ešte nedostal.
             </p>
+            <TestResultsPanel results={results} />
             <QuestionBank questions={questions} enabled={enabled} />
           </main>
         </div>

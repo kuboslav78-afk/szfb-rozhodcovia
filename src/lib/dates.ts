@@ -130,3 +130,16 @@ export function formatWindowLabel({ from, to }: { from: string; to: string }): s
 
   return `${label(from)} – ${label(to)}`;
 }
+
+/** Pondelok aktuálneho týždňa v tvare YYYY-MM-DD — kľúč týždenného testu. */
+export function weekMondayIso(): string {
+  const now = new Date();
+  const sinceMonday = (now.getDay() + 6) % 7;
+  const monday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - sinceMonday,
+  );
+
+  return toDateStr(monday.getFullYear(), monday.getMonth() + 1, monday.getDate());
+}

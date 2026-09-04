@@ -4,6 +4,8 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageTitle } from "@/components/PageTitle";
 import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
 import { ProfileCompletionPrompt } from "@/components/ProfileCompletionPrompt";
+import { WeeklyTestPrompt } from "@/components/WeeklyTestPrompt";
+import { isTestingEnabled } from "@/lib/settings";
 import { missingProfileFields } from "@/lib/profile-completeness";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getOverallEarnings, getRefereeEarnings } from "@/lib/earnings";
@@ -13,7 +15,12 @@ import { LICENSE_LABELS, isLicenseLevel } from "@/lib/licenses";
 import { DashboardCategoryTabs } from "@/components/DashboardCategoryTabs";
 import { CATEGORY_LABELS, isCategory } from "@/lib/categories";
 import { getCategoryAccess } from "@/lib/category-access";
-import { formatWindowLabel, todayDateStr, twoWeekWindow } from "@/lib/dates";
+import {
+  formatWindowLabel,
+  todayDateStr,
+  twoWeekWindow,
+  weekMondayIso,
+} from "@/lib/dates";
 import type { Category } from "@/lib/categories";
 
 function singleParam(value: string | string[] | undefined) {
@@ -300,6 +307,25 @@ export default async function HomePage(props: PageProps<"/">) {
   const officiatedCount = confirmedPastRows?.length ?? 0;
   const myEarnings = isViewer ? null : await getRefereeEarnings(supabase, referee.id);
 
+  // Pripomienka týždenného testu — kým ho rozhodca neodošle. Zadanie vzniká až
+  // pri prvom otvorení testu, takže jeho absencia znamená, že ešte nezačal.
+  const testingEnabled = await isTestingEnabled(supabase);
+  let weeklyTest = { pending: false, started: false };
+
+  if (testingEnabled && !isViewer) {
+    const { data: assignment } = await supabase
+      .from("test_assignments")
+      .select("submitted_at")
+      .eq("referee_id", referee.id)
+      .eq("week_start", weekMondayIso())
+      .maybeSingle();
+
+    weeklyTest = {
+      pending: !assignment?.submitted_at,
+      started: Boolean(assignment),
+    };
+  }
+
   return (
     <div className="lg:flex">
       {needsHomeRegionPrompt && <HomeRegionPrompt />}
@@ -329,6 +355,8 @@ export default async function HomePage(props: PageProps<"/">) {
             missingFields={missingFields}
             missingCriminalRecord={missingCriminalRecord}
           />
+
+          {weeklyTest.pending && <WeeklyTestPrompt started={weeklyTest.started} />}
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr] lg:items-start">
             {/* LEFT COLUMN */}

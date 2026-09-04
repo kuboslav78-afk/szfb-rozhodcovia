@@ -128,7 +128,7 @@ export function WeeklyTest({ assignmentId, submitted, score, weekLabel }: Props)
         <p className="mt-1 text-sm text-zinc-500">
           {done
             ? `Tento týždeň už máš test odoslaný — získal/a si ${result} z 10 bodov.`
-            : "Desať otázok z pravidiel florbalu. Odoslať sa dá raz, potom uvidíš správne odpovede aj vysvetlenia."}
+            : "Vyplnenie testu je povinné. Desať otázok z pravidiel florbalu, odoslať sa dá raz — potom uvidíš správne odpovede aj vysvetlenia."}
         </p>
         {error && (
           <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
