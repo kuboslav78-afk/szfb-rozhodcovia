@@ -336,6 +336,24 @@ export async function setRefereeRole(
  */
 export type CategoryAccessLevel = "none" | "view" | "edit";
 
+/**
+ * Členstvo v KRO — samostatné od kategóriového prístupu. Člen komisie nevypĺňa
+ * testy a vidí banku otázok aj výsledky všetkých rozhodcov.
+ */
+export async function setKroMember(refereeId: string, member: boolean) {
+  await requireSuperAdmin();
+
+  const admin = serviceClient();
+  const { error } = await admin
+    .from("referees")
+    .update({ kro_member: member })
+    .eq("id", refereeId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/", "layout");
+}
+
 export async function setCategoryAccess(
   refereeId: string,
   category: Category,

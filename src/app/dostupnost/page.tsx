@@ -171,6 +171,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
     license_level: LicenseLevel | null;
     home_region: Category | null;
     role: "admin" | "referee" | "viewer";
+    kro_member: boolean;
     contract_type: ContractType | null;
     contract_number: string | null;
   };
@@ -193,7 +194,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
       await Promise.all([
         supabase
           .from("referees")
-          .select("id, full_name, license_level, home_region, role, contract_type, contract_number")
+          .select("id, full_name, license_level, home_region, role, contract_type, contract_number, kro_member")
           .eq("active", true)
           .order("full_name"),
         supabase.from("referee_categories").select("referee_id, category"),
@@ -313,7 +314,7 @@ export default async function DostupnostPage(props: PageProps<"/dostupnost">) {
     } else if (categoryRefereeIds.size > 0) {
       const { data: catReferees } = await supabase
         .from("referees")
-        .select("id, full_name, license_level, home_region, role, contract_type, contract_number")
+        .select("id, full_name, license_level, home_region, role, contract_type, contract_number, kro_member")
         .in("id", Array.from(categoryRefereeIds))
         .eq("active", true)
         .order("full_name");

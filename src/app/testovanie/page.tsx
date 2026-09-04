@@ -11,7 +11,7 @@ import { getPendingNominationCount } from "@/lib/nominations";
 import { getEffectiveIsAdmin } from "@/lib/view-mode";
 import { isTestingEnabled } from "@/lib/settings";
 import { fetchAllRows } from "@/lib/paginate";
-import { getCategoryAccess } from "@/lib/category-access";
+import { isKroMember } from "@/lib/kro";
 
 function weekMondayLabel() {
   const now = new Date();
@@ -37,9 +37,7 @@ export default async function TestovaniePage() {
 
   // Banku a výsledky vidí celá KRO — super admin, viewer aj členovia komisie
   // s kategóriovým prístupom. Upravovať ich smie len super admin.
-  const categoryAccess = await getCategoryAccess(supabase, referee.id, realIsAdmin);
-  const isKro =
-    realIsAdmin || referee.role === "viewer" || categoryAccess.visible.length > 0;
+  const isKro = await isKroMember(supabase, referee.id, referee.role);
 
   const sidebar = (
     <Sidebar

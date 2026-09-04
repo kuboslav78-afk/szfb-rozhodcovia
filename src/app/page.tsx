@@ -6,6 +6,7 @@ import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
 import { ProfileCompletionPrompt } from "@/components/ProfileCompletionPrompt";
 import { WeeklyTestPrompt } from "@/components/WeeklyTestPrompt";
 import { isTestingEnabled } from "@/lib/settings";
+import { isKroMember } from "@/lib/kro";
 import { missingProfileFields } from "@/lib/profile-completeness";
 import { getPendingNominationCount } from "@/lib/nominations";
 import { getOverallEarnings, getRefereeEarnings } from "@/lib/earnings";
@@ -314,7 +315,9 @@ export default async function HomePage(props: PageProps<"/">) {
   let weeklyTest = { pending: false, started: false };
 
   // Členovia KRO testy nevypĺňajú, tak ich pripomienkou neotravujeme.
-  if (testingEnabled && !isViewer && !hasAdminAccess) {
+  const kroMember = await isKroMember(supabase, referee.id, referee.role);
+
+  if (testingEnabled && !kroMember) {
     const { data: assignment } = await supabase
       .from("test_assignments")
       .select("submitted_at")

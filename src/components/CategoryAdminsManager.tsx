@@ -4,12 +4,13 @@ import { useState, useTransition } from "react";
 import { CATEGORIES, CATEGORY_LABELS, type Category } from "@/lib/categories";
 import {
   setCategoryAccess,
+  setKroMember,
   setRefereeRole,
   type CategoryAccessLevel,
 } from "@/app/admin-users/actions";
 
 type Role = "admin" | "referee" | "viewer";
-type Referee = { id: string; full_name: string; role: Role };
+type Referee = { id: string; full_name: string; role: Role; kro_member: boolean };
 
 type Props = {
   referees: Referee[];
@@ -36,6 +37,28 @@ const ROLE_CONFIRM_MESSAGE: Record<Role, (name: string) => string> = {
   admin: (name) =>
     `Urobiť z ${name} plnohodnotného Super Admina? Bude mať plný prístup ku všetkému, vrátane správy ostatných adminov.`,
 };
+
+/** Členstvo v komisii — nezávislé od kategóriového prístupu. */
+function KroCell({ referee }: { referee: Referee }) {
+  const [member, setMember] = useState(referee.kro_member);
+  const [, startTransition] = useTransition();
+
+  return (
+    <input
+      type="checkbox"
+      checked={member}
+      title="Člen KRO — nevypĺňa testy, vidí banku otázok aj výsledky všetkých"
+      onChange={() => {
+        const next = !member;
+        setMember(next);
+        startTransition(async () => {
+          await setKroMember(referee.id, next);
+        });
+      }}
+      className="h-4 w-4 accent-brand-indigo"
+    />
+  );
+}
 
 function RoleCell({ referee }: { referee: Referee }) {
   const [role, setRole] = useState<Role>(referee.role);
@@ -204,7 +227,10 @@ export function CategoryAdminsManager({ referees, initialAccess }: Props) {
             svoju dostupnosť aj nominácie vypĺňa ďalej cez prepínač Admin/Rozhodca.{" "}
             <span className="font-semibold text-brand-red">Super Admin</span>{" "}
             = plný prístup ku všetkému, vrátane správy ostatných adminov —
-            udeľuj opatrne. <span className="font-semibold">Viewer</span> = celoplošne
+            udeľuj opatrne. <span className="font-semibold">KRO</span> = člen komisie:
+            nevypĺňa týždenné testy a vidí banku otázok aj výsledky všetkých. Je to
+            nezávislé od kategórií — tie má aj nominačné oddelenie, ktoré testy robiť
+            má. <span className="font-semibold">Viewer</span> = celoplošne
             len na čítanie, ale stratí aj vlastnú dostupnosť — pre členov KRO, ktorí sú
             zároveň rozhodcami, použi radšej Nahliadnuť.
           </p>
@@ -258,6 +284,9 @@ export function CategoryAdminsManager({ referees, initialAccess }: Props) {
               <th className="border-l border-zinc-200 px-2 py-2 text-center text-xs font-semibold text-zinc-500 dark:border-zinc-800">
                 Rola
               </th>
+              <th className="px-2 py-2 text-center text-xs font-medium text-zinc-400">
+                KRO
+              </th>
               {CATEGORIES.map((category) => (
                 <th
                   key={category}
@@ -292,6 +321,9 @@ export function CategoryAdminsManager({ referees, initialAccess }: Props) {
                   </td>
                   <td className="border-l border-zinc-100 px-2 py-2 text-center dark:border-zinc-900">
                     <RoleCell referee={referee} />
+                  </td>
+                  <td className="px-2 py-2 text-center">
+                    <KroCell referee={referee} />
                   </td>
                   {CATEGORIES.map((category) => {
                     const level = levelFor(referee.id, category);
