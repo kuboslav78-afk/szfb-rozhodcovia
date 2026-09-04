@@ -6,6 +6,8 @@ import { HomeRegionPrompt } from "@/components/HomeRegionPrompt";
 import { ProfileCompletionPrompt } from "@/components/ProfileCompletionPrompt";
 import { missingProfileFields } from "@/lib/profile-completeness";
 import { getPendingNominationCount } from "@/lib/nominations";
+import { getOverallEarnings, getRefereeEarnings } from "@/lib/earnings";
+import { EarningsCard, OverallEarningsCard } from "@/components/EarningsCard";
 import { getEffectiveIsAdmin, isRefereeViewActive } from "@/lib/view-mode";
 import { LICENSE_LABELS, isLicenseLevel } from "@/lib/licenses";
 import { DashboardCategoryTabs } from "@/components/DashboardCategoryTabs";
@@ -72,6 +74,7 @@ export default async function HomePage(props: PageProps<"/">) {
     // Nominačný prehľad drží pevné dvojtýždňové okno ukotvené na pondelok,
     // takže sa počas týždňa nemení a preklopí sa vždy v pondelok.
     const nominationWindow = twoWeekWindow();
+    const overallEarnings = await getOverallEarnings(supabase);
 
     const [{ data: needsNominationRows }, { count: needsNominationCount }, { count: awaitingResponseCount }] =
       await Promise.all([
@@ -226,10 +229,7 @@ export default async function HomePage(props: PageProps<"/">) {
                   <p className="text-sm text-zinc-400">Modul noviniek sa pripravuje.</p>
                 </div>
 
-                <div className="rounded-xl border border-dashed border-zinc-200 p-5 dark:border-zinc-800">
-                  <div className="mb-3 text-xs font-semibold tracking-wide text-zinc-400 uppercase">Odmeny</div>
-                  <p className="text-sm text-zinc-400">Modul vyúčtovania sa pripravuje.</p>
-                </div>
+                <OverallEarningsCard earnings={overallEarnings} />
               </div>
             </div>
           </main>
@@ -298,6 +298,7 @@ export default async function HomePage(props: PageProps<"/">) {
   });
 
   const officiatedCount = confirmedPastRows?.length ?? 0;
+  const myEarnings = isViewer ? null : await getRefereeEarnings(supabase, referee.id);
 
   return (
     <div className="lg:flex">
@@ -444,10 +445,7 @@ export default async function HomePage(props: PageProps<"/">) {
                 <p className="text-sm text-zinc-400">Modul noviniek sa pripravuje.</p>
               </div>
 
-              <div className="rounded-xl border border-dashed border-zinc-200 p-5 dark:border-zinc-800">
-                <div className="mb-3 text-xs font-semibold tracking-wide text-zinc-400 uppercase">Odmeny</div>
-                <p className="text-sm text-zinc-400">Modul vyúčtovania sa pripravuje.</p>
-              </div>
+              {myEarnings && <EarningsCard earnings={myEarnings} />}
             </div>
           </div>
         </main>
